@@ -3,7 +3,7 @@
 
 📦 ไฟล์ที่มีในโฟลเดอร์นี้:
 -----------------------------
-1. ink-checker-0.0.5.vsix         - ตัว Extension (ติดตั้งได้ทั้ง Windows และ Mac)
+1. ink-checker-0.0.7.vsix         - ตัว Extension (ติดตั้งได้ทั้ง Windows และ Mac)
 2. example-settings.json          - ตัวอย่างค่า Settings ที่ตั้งไว้
 3. README.md                      - เอกสารหลักของโปรเจกต์
 4. CHANGELOG.md                   - ประวัติการเปลี่ยนแปลง
@@ -12,7 +12,7 @@
 🚀 วิธีติดตั้งง่ายที่สุด (Windows / Mac / Linux):
 --------------------------------------------------
 1. เปิด VS Code
-2. ลากไฟล์ "ink-checker-0.0.5.vsix" วางลงใน VS Code
+2. ลากไฟล์ "ink-checker-0.0.7.vsix" วางลงใน VS Code
 3. กดปุ่ม "Install" เมื่อมีป๊อปอัพขึ้นมา
 4. รีโหลด VS Code
 5. เสร็จแล้ว!
@@ -22,7 +22,7 @@
 -------------
 • ดับเบิลคลิกที่ไฟล์ .vsix โดยตรง
 • หรือใช้คำสั่ง Terminal:
-  code --install-extension ink-checker-0.0.5.vsix
+  code --install-extension ink-checker-0.0.7.vsix
 
 
 ⚙️ การตั้งค่า Settings:
@@ -55,6 +55,6 @@
 • รีสตาร์ท VS Code
 
 ==================================================
-เวอร์ชัน: 0.0.5
+เวอร์ชัน: 0.0.7
 วันที่: 6 เมษายน 2026
 

@@ -1,5 +1,7 @@
 import * as vscode from "vscode";
 
+const CONFIG_SECTION = "inkChecker";
+
 /**
  * WordListPanel: หน้าต่างสำหรับจัดการรายการคำที่ต้องการตรวจสอบ
  */
@@ -68,7 +70,7 @@ export class WordListPanel {
   }
 
   private _sendWordsToWebview() {
-    const config = vscode.workspace.getConfiguration("kunpengChecker");
+    const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
     // .get() will automatically fall back to the default value in package.json
     const words = config.get<string[]>("customWords");
 
@@ -79,7 +81,7 @@ export class WordListPanel {
   }
 
   private _sendSettingsToWebview() {
-    const config = vscode.workspace.getConfiguration("kunpengChecker");
+    const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
 
     this._panel.webview.postMessage({
       command: "settingsLoaded",
@@ -115,7 +117,7 @@ export class WordListPanel {
   }
 
   private async _saveWords(words: string[]) {
-    const config = vscode.workspace.getConfiguration("kunpengChecker");
+    const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
     await config.update(
       "customWords",
       words,
@@ -123,11 +125,11 @@ export class WordListPanel {
     );
 
     // ส่งคำสั่งให้ refresh การตรวจสอบ
-    vscode.commands.executeCommand("kunpeng-checker.refresh");
+    vscode.commands.executeCommand("ink-checker.refresh");
   }
 
   private async _saveSettings(settings: any) {
-    const config = vscode.workspace.getConfiguration("kunpengChecker");
+    const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
 
     await config.update(
       "checkEnglish",
@@ -189,11 +191,11 @@ export class WordListPanel {
     // vscode.window.showInformationMessage("✓ บันทึกการตั้งค่าและรายการคำเรียบร้อยแล้ว");
 
     // ส่งคำสั่งให้ refresh การตรวจสอบ
-    vscode.commands.executeCommand("kunpeng-checker.refresh");
+    vscode.commands.executeCommand("ink-checker.refresh");
   }
 
   private _sendWordGroupsToWebview() {
-    const config = vscode.workspace.getConfiguration("kunpengChecker");
+    const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
     const wordGroups = config.get<string[]>("wordGroups", []);
 
     this._panel.webview.postMessage({
@@ -203,7 +205,7 @@ export class WordListPanel {
   }
 
   private async _saveWordGroups(wordGroups: string[]) {
-    const config = vscode.workspace.getConfiguration("kunpengChecker");
+    const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
     await config.update(
       "wordGroups",
       wordGroups,
@@ -215,7 +217,7 @@ export class WordListPanel {
     // vscode.window.showInformationMessage("✓ บันทึกกลุ่มคำเรียบร้อยแล้ว");
 
     // ส่งคำสั่งให้ refresh การตรวจสอบ
-    vscode.commands.executeCommand("kunpeng-checker.refresh");
+    vscode.commands.executeCommand("ink-checker.refresh");
   }
 
   private async _saveAllData(message: any) {
@@ -252,7 +254,7 @@ export class WordListPanel {
   }
 
   private _getWebviewContent(): string {
-    const config = vscode.workspace.getConfiguration("kunpengChecker");
+    const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
     const toHex = (value: string, fallback: string) => {
       if (!value) return fallback;
       const trimmed = value.trim();

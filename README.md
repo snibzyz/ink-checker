@@ -39,7 +39,7 @@ code --install-extension inkrealm.ink-checker
 If you have a packaged `.vsix` file:
 
 ```bash
-code --install-extension ink-checker-0.0.5.vsix
+code --install-extension ink-checker-0.0.7.vsix
 ```
 
 You can also drag the `.vsix` file into VS Code.
@@ -61,20 +61,20 @@ You can also search for `INK CHECKER` in the VS Code Settings UI.
 
 ## Main Settings
 
-- `kunpengChecker.enabled`
-- `kunpengChecker.customWords`
-- `kunpengChecker.wordGroups`
-- `kunpengChecker.checkEnglish`
-- `kunpengChecker.checkNumbers`
-- `kunpengChecker.checkForeignLanguages`
-- `kunpengChecker.checkUnclosedFancyQuotes`
-- `kunpengChecker.checkUnclosedDoubleQuotes`
-- `kunpengChecker.checkUnclosedSingleQuotes`
-- `kunpengChecker.checkUnclosedParentheses`
-- `kunpengChecker.checkUnclosedBrackets`
-- `kunpengChecker.customWordsColor`
-- `kunpengChecker.languageAndNumberColor`
-- `kunpengChecker.unbalancedCharactersColor`
+- `inkChecker.enabled`
+- `inkChecker.customWords`
+- `inkChecker.wordGroups`
+- `inkChecker.checkEnglish`
+- `inkChecker.checkNumbers`
+- `inkChecker.checkForeignLanguages`
+- `inkChecker.checkUnclosedFancyQuotes`
+- `inkChecker.checkUnclosedDoubleQuotes`
+- `inkChecker.checkUnclosedSingleQuotes`
+- `inkChecker.checkUnclosedParentheses`
+- `inkChecker.checkUnclosedBrackets`
+- `inkChecker.customWordsColor`
+- `inkChecker.languageAndNumberColor`
+- `inkChecker.unbalancedCharactersColor`
 
 ## Development
 

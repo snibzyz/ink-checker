@@ -1,9 +1,9 @@
 {
-  "name": "kunpeng-checker",
+  "name": "ink-checker",
   "displayName": "INK CHECKER",
   "description": "Word and writing consistency checker for Thai text",
-  "version": "0.0.6",
-  "publisher": "kunpeng-dev",
+  "version": "0.0.7",
+  "publisher": "inkrealm",
   "icon": "inkrealm-logo.png",
   "repository": {
     "type": "git",
@@ -33,17 +33,17 @@
   "contributes": {
     "commands": [
       {
-        "command": "kunpeng-checker.openWordList",
+        "command": "ink-checker.openWordList",
         "title": "INK CHECKER: เปิดจัดการรายการคำ",
         "icon": "$(list-unordered)"
       },
       {
-        "command": "kunpeng-checker.openSettings",
+        "command": "ink-checker.openSettings",
         "title": "INK CHECKER: เปิด Settings",
         "icon": "$(settings-gear)"
       },
       {
-        "command": "kunpeng-checker.toggleChecker",
+        "command": "ink-checker.toggleChecker",
         "title": "INK CHECKER: เปิด/ปิดการตรวจสอบ",
         "icon": "$(eye)"
       }
@@ -52,12 +52,12 @@
       {
         "title": "INK CHECKER",
         "properties": {
-          "kunpengChecker.enabled": {
+          "inkChecker.enabled": {
             "type": "boolean",
             "default": true,
             "description": "เปิดหรือปิดการตรวจสอบคำทั้งหมด"
           },
-          "kunpengChecker.customWords": {
+          "inkChecker.customWords": {
             "type": "array",
             "items": {
               "type": "string"
@@ -65,7 +65,7 @@
             "default": ["นาย", "แก", "ฉัน"],
             "description": "รายการคำที่ต้องการตรวจสอบ"
           },
-          "kunpengChecker.wordGroups": {
+          "inkChecker.wordGroups": {
             "type": "array",
             "items": {
               "type": "string"
@@ -78,42 +78,42 @@
       {
         "title": "INK CHECKER Detection Rules",
         "properties": {
-          "kunpengChecker.checkEnglish": {
+          "inkChecker.checkEnglish": {
             "type": "boolean",
             "default": false,
             "description": "ตรวจหาคำหรือข้อความภาษาอังกฤษ"
           },
-          "kunpengChecker.checkNumbers": {
+          "inkChecker.checkNumbers": {
             "type": "boolean",
             "default": false,
             "description": "ตรวจหาตัวเลข"
           },
-          "kunpengChecker.checkForeignLanguages": {
+          "inkChecker.checkForeignLanguages": {
             "type": "boolean",
             "default": false,
             "description": "ตรวจหาภาษาต่างประเทศอื่นที่ไม่ใช่ภาษาไทย"
           },
-          "kunpengChecker.checkUnclosedFancyQuotes": {
+          "inkChecker.checkUnclosedFancyQuotes": {
             "type": "boolean",
             "default": true,
             "description": "ตรวจหาอัญประกาศโค้งที่เปิดแล้วไม่ปิด"
           },
-          "kunpengChecker.checkUnclosedDoubleQuotes": {
+          "inkChecker.checkUnclosedDoubleQuotes": {
             "type": "boolean",
             "default": false,
             "description": "ตรวจหาเครื่องหมายอัญประกาศคู่ที่เปิดแล้วไม่ปิด"
           },
-          "kunpengChecker.checkUnclosedSingleQuotes": {
+          "inkChecker.checkUnclosedSingleQuotes": {
             "type": "boolean",
             "default": false,
             "description": "ตรวจหาเครื่องหมายอัญประกาศเดี่ยวที่เปิดแล้วไม่ปิด"
           },
-          "kunpengChecker.checkUnclosedParentheses": {
+          "inkChecker.checkUnclosedParentheses": {
             "type": "boolean",
             "default": false,
             "description": "ตรวจหาวงเล็บที่เปิดแล้วไม่ปิด"
           },
-          "kunpengChecker.checkUnclosedBrackets": {
+          "inkChecker.checkUnclosedBrackets": {
             "type": "boolean",
             "default": false,
             "description": "ตรวจหาวงเล็บเหลี่ยมที่เปิดแล้วไม่ปิด"
@@ -123,17 +123,17 @@
       {
         "title": "INK CHECKER Highlight Colors",
         "properties": {
-          "kunpengChecker.customWordsColor": {
+          "inkChecker.customWordsColor": {
             "type": "string",
             "default": "rgba(255, 229, 100, 0.6)",
             "description": "สีไฮไลต์สำหรับรายการคำที่กำหนดเอง"
           },
-          "kunpengChecker.languageAndNumberColor": {
+          "inkChecker.languageAndNumberColor": {
             "type": "string",
             "default": "rgba(173, 216, 230, 0.5)",
             "description": "สีไฮไลต์สำหรับภาษาต่างประเทศ ภาษาอังกฤษ และตัวเลข"
           },
-          "kunpengChecker.unbalancedCharactersColor": {
+          "inkChecker.unbalancedCharactersColor": {
             "type": "string",
             "default": "rgba(255, 100, 100, 0.4)",
             "description": "สีไฮไลต์สำหรับวงเล็บหรือเครื่องหมายคำพูดที่เปิดแล้วไม่ปิด"

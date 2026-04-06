@@ -11,6 +11,25 @@ let customWordsDecorationType: vscode.TextEditorDecorationType;
 let languageAndNumberDecorationType: vscode.TextEditorDecorationType;
 let unbalancedCharsDecorationType: vscode.TextEditorDecorationType;
 let timeout: NodeJS.Timeout | undefined = undefined;
+const CONFIG_SECTION = "inkChecker";
+const LEGACY_CONFIG_SECTION = "kunpengChecker";
+const CONFIG_KEYS = [
+  "enabled",
+  "customWords",
+  "wordGroups",
+  "checkEnglish",
+  "checkNumbers",
+  "checkForeignLanguages",
+  "checkUnclosedFancyQuotes",
+  "checkUnclosedDoubleQuotes",
+  "checkUnclosedSingleQuotes",
+  "checkUnclosedParentheses",
+  "checkUnclosedBrackets",
+  "customWordsColor",
+  "languageAndNumberColor",
+  "unbalancedCharactersColor",
+] as const;
+type ConfigKey = (typeof CONFIG_KEYS)[number];
 
 // ======================================================================
 // ส่วนที่ 2: ฟังก์ชันตรวจจับภาษาต่างประเทศ
@@ -110,7 +129,7 @@ function updateDecorations() {
     return;
   }
 
-  const config = vscode.workspace.getConfiguration("kunpengChecker");
+  const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
   const enabled = config.get<boolean>("enabled", true);
 
   if (!enabled) {
@@ -350,17 +369,17 @@ function triggerUpdateDecorations() {
  * อัพเดท Status Bar
  */
 function updateStatusBar(count: number) {
-  const config = vscode.workspace.getConfiguration("kunpengChecker");
+  const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
   const enabled = config.get<boolean>("enabled", true);
 
   if (enabled) {
     statusBarItem.text = `$(search) INK: ${count} คำ`;
     statusBarItem.tooltip = `พบคำที่ตรวจสอบ ${count} คำ\nคลิกเพื่อเปิดจัดการรายการคำ`;
-    statusBarItem.command = "kunpeng-checker.openWordList";
+    statusBarItem.command = "ink-checker.openWordList";
   } else {
     statusBarItem.text = `$(eye-closed) INK: ปิด`;
     statusBarItem.tooltip = "การตรวจสอบถูกปิด\nคลิกเพื่อเปิด";
-    statusBarItem.command = "kunpeng-checker.toggleChecker";
+    statusBarItem.command = "ink-checker.toggleChecker";
   }
   statusBarItem.show();
 }
@@ -369,7 +388,7 @@ function updateStatusBar(count: number) {
  * สร้าง decoration type ใหม่ตามสีที่กำหนด
  */
 function createDecorationTypes() {
-  const config = vscode.workspace.getConfiguration("kunpengChecker");
+  const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
 
   // Normalize config colors: accept either rgba() or #RRGGBB
   const toRgba = (value: string | undefined, alphaFallback: number) => {
@@ -475,12 +494,88 @@ function buildWordMap(wordGroups: string[]): Record<string, string[]> {
   return wordMap;
 }
 
+async function migrateLegacyConfigValue(
+  key: ConfigKey,
+  target: vscode.ConfigurationTarget,
+  scopeUri?: vscode.Uri
+): Promise<boolean> {
+  const legacyConfig = vscode.workspace.getConfiguration(
+    LEGACY_CONFIG_SECTION,
+    scopeUri
+  );
+  const config = vscode.workspace.getConfiguration(CONFIG_SECTION, scopeUri);
+  const legacyInspect = legacyConfig.inspect(key);
+  const currentInspect = config.inspect(key);
+
+  let legacyValue: unknown;
+  let currentValue: unknown;
+
+  switch (target) {
+    case vscode.ConfigurationTarget.Global:
+      legacyValue = legacyInspect?.globalValue;
+      currentValue = currentInspect?.globalValue;
+      break;
+    case vscode.ConfigurationTarget.Workspace:
+      legacyValue = legacyInspect?.workspaceValue;
+      currentValue = currentInspect?.workspaceValue;
+      break;
+    case vscode.ConfigurationTarget.WorkspaceFolder:
+      legacyValue = legacyInspect?.workspaceFolderValue;
+      currentValue = currentInspect?.workspaceFolderValue;
+      break;
+  }
+
+  if (legacyValue === undefined) {
+    return false;
+  }
+
+  if (currentValue === undefined) {
+    await config.update(key, legacyValue, target);
+  }
+
+  await legacyConfig.update(key, undefined, target);
+  return true;
+}
+
+async function migrateLegacySettings() {
+  let migrated = false;
+
+  for (const key of CONFIG_KEYS) {
+    migrated =
+      (await migrateLegacyConfigValue(key, vscode.ConfigurationTarget.Global)) ||
+      migrated;
+    migrated =
+      (await migrateLegacyConfigValue(
+        key,
+        vscode.ConfigurationTarget.Workspace
+      )) || migrated;
+  }
+
+  for (const folder of vscode.workspace.workspaceFolders ?? []) {
+    for (const key of CONFIG_KEYS) {
+      migrated =
+        (await migrateLegacyConfigValue(
+          key,
+          vscode.ConfigurationTarget.WorkspaceFolder,
+          folder.uri
+        )) || migrated;
+    }
+  }
+
+  if (migrated) {
+    void vscode.window.showInformationMessage(
+      "ย้ายการตั้งค่าจาก kunpengChecker ไปเป็น inkChecker เรียบร้อยแล้ว"
+    );
+  }
+}
+
 // ======================================================================
 // ส่วนที่ 4: Activation และ Commands
 // ======================================================================
 
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
   console.log("INK CHECKER is now active!");
+  await migrateLegacySettings();
 
   // สร้าง Status Bar Item
   statusBarItem = vscode.window.createStatusBarItem(
@@ -623,7 +718,7 @@ export function activate(context: vscode.ExtensionContext) {
     { scheme: "file", pattern: "**/*" },
     {
       provideHover(document, position, token) {
-        const config = vscode.workspace.getConfiguration("kunpengChecker");
+        const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
         const wordGroups = config.get<string[]>("wordGroups", []);
         const wordMap = buildWordMap(wordGroups);
 
@@ -702,7 +797,7 @@ export function activate(context: vscode.ExtensionContext) {
           options.forEach((option, index) => {
               // สร้าง command link ที่คลิกได้
               const commandUri = vscode.Uri.parse(
-                `command:kunpeng-checker.replaceWord?${encodeURIComponent(
+                `command:ink-checker.replaceWord?${encodeURIComponent(
                   JSON.stringify({
                     word: word,
                     replacement: option,
@@ -737,7 +832,7 @@ export function activate(context: vscode.ExtensionContext) {
       { scheme: "file", pattern: "**/*" },
       {
         provideCodeActions(document, range, context, token) {
-          const config = vscode.workspace.getConfiguration("kunpengChecker");
+          const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
           const wordGroups = config.get<string[]>("wordGroups", []);
           const wordMap = buildWordMap(wordGroups);
 
@@ -777,7 +872,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   // คำสั่งสำหรับแทนที่คำจาก hover
   const replaceWordCommand = vscode.commands.registerCommand(
-    "kunpeng-checker.replaceWord",
+    "ink-checker.replaceWord",
     async (args: any) => {
       if (!activeEditor) {
         return;
@@ -808,27 +903,27 @@ export function activate(context: vscode.ExtensionContext) {
 
   // คำสั่งเปิดหน้าต่างจัดการคำ
   const openWordListCommand = vscode.commands.registerCommand(
-    "kunpeng-checker.openWordList",
+    "ink-checker.openWordList",
     () => {
       WordListPanel.createOrShow(context.extensionUri);
     }
   );
 
   const openSettingsCommand = vscode.commands.registerCommand(
-    "kunpeng-checker.openSettings",
+    "ink-checker.openSettings",
     async () => {
       await vscode.commands.executeCommand(
         "workbench.action.openSettings",
-        "@ext:kunpeng-dev.kunpeng-checker"
+        "@ext:inkrealm.ink-checker"
       );
     }
   );
 
   // คำสั่งเปิด/ปิดการตรวจสอบ
   const toggleCheckerCommand = vscode.commands.registerCommand(
-    "kunpeng-checker.toggleChecker",
+    "ink-checker.toggleChecker",
     async () => {
-      const config = vscode.workspace.getConfiguration("kunpengChecker");
+      const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
       const currentState = config.get<boolean>("enabled", true);
       await config.update(
         "enabled",
@@ -845,7 +940,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   // คำสั่ง refresh (เรียกจาก WordListPanel)
   const refreshCommand = vscode.commands.registerCommand(
-    "kunpeng-checker.refresh",
+    "ink-checker.refresh",
     () => {
       createDecorationTypes();
       triggerUpdateDecorations();
@@ -890,7 +985,10 @@ export function activate(context: vscode.ExtensionContext) {
   // Event Listener: เปลี่ยนการตั้งค่า
   vscode.workspace.onDidChangeConfiguration(
     (event) => {
-      if (event.affectsConfiguration("kunpengChecker")) {
+      if (
+        event.affectsConfiguration(CONFIG_SECTION) ||
+        event.affectsConfiguration(LEGACY_CONFIG_SECTION)
+      ) {
         createDecorationTypes();
         triggerUpdateDecorations();
       }

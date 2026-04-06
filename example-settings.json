@@ -1,6 +1,6 @@
 {
-  "kunpengChecker.enabled": true,
-  "kunpengChecker.customWords": [
+  "inkChecker.enabled": true,
+  "inkChecker.customWords": [
     "นาย",
     "แก",
     "ฉัน",
@@ -43,23 +43,23 @@
     "จารย์",
     "นาง"
   ],
-  "kunpengChecker.checkEnglish": true,
-  "kunpengChecker.checkNumbers": true,
-  "kunpengChecker.checkForeignLanguages": true,
-  "kunpengChecker.checkUnclosedFancyQuotes": true,
-  "kunpengChecker.checkUnclosedDoubleQuotes": true,
-  "kunpengChecker.checkUnclosedSingleQuotes": true,
-  "kunpengChecker.checkUnclosedParentheses": true,
-  "kunpengChecker.checkUnclosedBrackets": true,
-  "kunpengChecker.highlightColor": {
+  "inkChecker.checkEnglish": true,
+  "inkChecker.checkNumbers": true,
+  "inkChecker.checkForeignLanguages": true,
+  "inkChecker.checkUnclosedFancyQuotes": true,
+  "inkChecker.checkUnclosedDoubleQuotes": true,
+  "inkChecker.checkUnclosedSingleQuotes": true,
+  "inkChecker.checkUnclosedParentheses": true,
+  "inkChecker.checkUnclosedBrackets": true,
+  "inkChecker.highlightColor": {
     "customWords": "#000000",
     "languageAndNumber": "#ff0000",
     "unbalancedCharacters": "#ff0000"
   },
-  "kunpengChecker.customWordsColor": "rgba(145, 138, 105, 0.6)",
-  "kunpengChecker.languageAndNumberColor": "rgba(255, 0, 221, 0.5)",
-  "kunpengChecker.unbalancedCharactersColor": "rgba(255, 0, 0, 0.4)",
-  "kunpengChecker.autocorrect": {
+  "inkChecker.customWordsColor": "rgba(145, 138, 105, 0.6)",
+  "inkChecker.languageAndNumberColor": "rgba(255, 0, 221, 0.5)",
+  "inkChecker.unbalancedCharactersColor": "rgba(255, 0, 0, 0.4)",
+  "inkChecker.autocorrect": {
     "ข้า": ["ฉัน", "ผม", "เรา", "ข้า", "เขา"],
     "ฉัน": ["ข้า", "ผม", "เรา", "ฉัน"],
     "ผม": ["ข้า", "ฉัน", "เรา", "ผม"],
