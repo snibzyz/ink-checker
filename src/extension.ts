@@ -914,7 +914,7 @@ export async function activate(context: vscode.ExtensionContext) {
     async () => {
       await vscode.commands.executeCommand(
         "workbench.action.openSettings",
-        "@ext:inkrealm.ink-checker"
+        `@ext:${context.extension.id}`
       );
     }
   );

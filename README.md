@@ -85,6 +85,20 @@ npm run compile
 
 To run the extension locally, open the project in VS Code and press `F5`.
 
+## Release Targets
+
+This repository supports two publish targets:
+
+- `package.marketplace.json` for `kunpeng-dev.kunpeng-checker`
+- `package.openvsx.json` for `inkrealm.ink-checker`
+
+Use these commands before publishing:
+
+```bash
+npm run use:marketplace
+npm run use:openvsx
+```
+
 ## Repository
 
 - [GitHub repository](https://github.com/snibzyz/ink-checker)

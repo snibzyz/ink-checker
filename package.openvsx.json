@@ -1,9 +1,9 @@
 {
-  "name": "kunpeng-checker",
+  "name": "ink-checker",
   "displayName": "INK CHECKER",
   "description": "Word and writing consistency checker for Thai text",
   "version": "0.0.8",
-  "publisher": "kunpeng-dev",
+  "publisher": "inkrealm",
   "icon": "inkrealm-logo.png",
   "repository": {
     "type": "git",
@@ -155,4 +155,3 @@
     "typescript": "^5.9.3"
   }
 }
-
