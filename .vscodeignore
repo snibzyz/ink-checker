@@ -2,6 +2,7 @@
 
 # Secrets / tokens
 tokens.env
+user.json
 
 # Docs only for manual distribution (do not ship to Marketplace)
 example-settings.json
@@ -21,6 +22,8 @@ src/test/**
 node_modules/**
 
 # Dev configs
+.vscode/**
+.vscode-test.mjs
 .eslint*
 eslint.config.mjs
 package-lock.json
