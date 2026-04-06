@@ -56,7 +56,7 @@ export class WordListPanel {
     // สร้าง panel ใหม่
     const panel = vscode.window.createWebviewPanel(
       "kunpengWordList",
-      "จัดการรายการคำ - Kunpeng Checker",
+      "จัดการรายการคำ - INK CHECKER",
       vscode.ViewColumn.One,
       {
         enableScripts: true,
@@ -534,7 +534,7 @@ export class WordListPanel {
     </style>
 </head>
 <body>
-    <h1>🔍 จัดการรายการคำ - Kunpeng Checker</h1>
+    <h1>🔍 จัดการรายการคำ - INK CHECKER</h1>
 
     <div class="info-box">
         <p><strong>วิธีใช้:</strong></p>

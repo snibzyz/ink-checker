@@ -1,18 +1,30 @@
 {
   "name": "kunpeng-checker",
-  "displayName": "Kunpeng Checker",
-  "description": "A simple tool to check specific words",
-  "version": "0.0.5",
+  "displayName": "INK CHECKER",
+  "description": "Word and writing consistency checker for Thai text",
+  "version": "0.0.6",
   "publisher": "kunpeng-dev",
+  "icon": "inkrealm-logo.png",
   "repository": {
     "type": "git",
-    "url": "https://github.com/snibzyz/kunpeng-checker.git"
+    "url": "https://github.com/snibzyz/ink-checker.git"
+  },
+  "homepage": "https://github.com/snibzyz/ink-checker",
+  "bugs": {
+    "url": "https://github.com/snibzyz/ink-checker/issues"
   },
   "engines": {
     "vscode": "^1.85.0"
   },
   "categories": [
     "Other"
+  ],
+  "keywords": [
+    "thai",
+    "writing",
+    "proofreading",
+    "editor",
+    "checker"
   ],
   "activationEvents": [
     "onStartupFinished"
@@ -22,18 +34,23 @@
     "commands": [
       {
         "command": "kunpeng-checker.openWordList",
-        "title": "Kunpeng: เปิดจัดการรายการคำ",
+        "title": "INK CHECKER: เปิดจัดการรายการคำ",
         "icon": "$(list-unordered)"
       },
       {
+        "command": "kunpeng-checker.openSettings",
+        "title": "INK CHECKER: เปิด Settings",
+        "icon": "$(settings-gear)"
+      },
+      {
         "command": "kunpeng-checker.toggleChecker",
-        "title": "Kunpeng: เปิด/ปิดการตรวจสอบ",
+        "title": "INK CHECKER: เปิด/ปิดการตรวจสอบ",
         "icon": "$(eye)"
       }
     ],
     "configuration": [
       {
-        "title": "Kunpeng Checker",
+        "title": "INK CHECKER",
         "properties": {
           "kunpengChecker.enabled": {
             "type": "boolean",
@@ -59,7 +76,7 @@
         }
       },
       {
-        "title": "Kunpeng Checker Detection Rules",
+        "title": "INK CHECKER Detection Rules",
         "properties": {
           "kunpengChecker.checkEnglish": {
             "type": "boolean",
@@ -104,7 +121,7 @@
         }
       },
       {
-        "title": "Kunpeng Checker Highlight Colors",
+        "title": "INK CHECKER Highlight Colors",
         "properties": {
           "kunpengChecker.customWordsColor": {
             "type": "string",

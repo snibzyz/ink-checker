@@ -354,11 +354,11 @@ function updateStatusBar(count: number) {
   const enabled = config.get<boolean>("enabled", true);
 
   if (enabled) {
-    statusBarItem.text = `$(search) Kunpeng: ${count} คำ`;
+    statusBarItem.text = `$(search) INK: ${count} คำ`;
     statusBarItem.tooltip = `พบคำที่ตรวจสอบ ${count} คำ\nคลิกเพื่อเปิดจัดการรายการคำ`;
     statusBarItem.command = "kunpeng-checker.openWordList";
   } else {
-    statusBarItem.text = `$(eye-closed) Kunpeng: ปิด`;
+    statusBarItem.text = `$(eye-closed) INK: ปิด`;
     statusBarItem.tooltip = "การตรวจสอบถูกปิด\nคลิกเพื่อเปิด";
     statusBarItem.command = "kunpeng-checker.toggleChecker";
   }
@@ -480,7 +480,7 @@ function buildWordMap(wordGroups: string[]): Record<string, string[]> {
 // ======================================================================
 
 export function activate(context: vscode.ExtensionContext) {
-  console.log("Kunpeng Checker is now active!");
+  console.log("INK CHECKER is now active!");
 
   // สร้าง Status Bar Item
   statusBarItem = vscode.window.createStatusBarItem(
@@ -814,6 +814,16 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
+  const openSettingsCommand = vscode.commands.registerCommand(
+    "kunpeng-checker.openSettings",
+    async () => {
+      await vscode.commands.executeCommand(
+        "workbench.action.openSettings",
+        "@ext:kunpeng-dev.kunpeng-checker"
+      );
+    }
+  );
+
   // คำสั่งเปิด/ปิดการตรวจสอบ
   const toggleCheckerCommand = vscode.commands.registerCommand(
     "kunpeng-checker.toggleChecker",
@@ -844,6 +854,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   context.subscriptions.push(
     openWordListCommand,
+    openSettingsCommand,
     toggleCheckerCommand,
     refreshCommand
   );
