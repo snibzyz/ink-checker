@@ -1,0 +1,135 @@
+{
+  "name": "kunpeng-checker",
+  "displayName": "Kunpeng Checker",
+  "description": "A simple tool to check specific words",
+  "version": "0.0.5",
+  "publisher": "kunpeng-dev",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "kunpeng-checker.openWordList",
+        "title": "Kunpeng: เปิดจัดการรายการคำ",
+        "icon": "$(list-unordered)"
+      },
+      {
+        "command": "kunpeng-checker.toggleChecker",
+        "title": "Kunpeng: เปิด/ปิดการตรวจสอบ",
+        "icon": "$(eye)"
+      }
+    ],
+    "configuration": [
+      {
+        "title": "Kunpeng Checker",
+        "properties": {
+          "kunpengChecker.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "เปิดหรือปิดการตรวจสอบคำทั้งหมด"
+          },
+          "kunpengChecker.customWords": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": ["นาย", "แก", "ฉัน"],
+            "description": "รายการคำที่ต้องการตรวจสอบ"
+          },
+          "kunpengChecker.wordGroups": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": ["ข้า, ฉัน, เธอ, คุณ, เจ้า"],
+            "description": "กลุ่มคำที่สามารถสลับกันได้ โดยคั่นคำในแต่ละกลุ่มด้วยเครื่องหมายจุลภาค"
+          }
+        }
+      },
+      {
+        "title": "Kunpeng Checker Detection Rules",
+        "properties": {
+          "kunpengChecker.checkEnglish": {
+            "type": "boolean",
+            "default": false,
+            "description": "ตรวจหาคำหรือข้อความภาษาอังกฤษ"
+          },
+          "kunpengChecker.checkNumbers": {
+            "type": "boolean",
+            "default": false,
+            "description": "ตรวจหาตัวเลข"
+          },
+          "kunpengChecker.checkForeignLanguages": {
+            "type": "boolean",
+            "default": false,
+            "description": "ตรวจหาภาษาต่างประเทศอื่นที่ไม่ใช่ภาษาไทย"
+          },
+          "kunpengChecker.checkUnclosedFancyQuotes": {
+            "type": "boolean",
+            "default": true,
+            "description": "ตรวจหาอัญประกาศโค้งที่เปิดแล้วไม่ปิด"
+          },
+          "kunpengChecker.checkUnclosedDoubleQuotes": {
+            "type": "boolean",
+            "default": false,
+            "description": "ตรวจหาเครื่องหมายอัญประกาศคู่ที่เปิดแล้วไม่ปิด"
+          },
+          "kunpengChecker.checkUnclosedSingleQuotes": {
+            "type": "boolean",
+            "default": false,
+            "description": "ตรวจหาเครื่องหมายอัญประกาศเดี่ยวที่เปิดแล้วไม่ปิด"
+          },
+          "kunpengChecker.checkUnclosedParentheses": {
+            "type": "boolean",
+            "default": false,
+            "description": "ตรวจหาวงเล็บที่เปิดแล้วไม่ปิด"
+          },
+          "kunpengChecker.checkUnclosedBrackets": {
+            "type": "boolean",
+            "default": false,
+            "description": "ตรวจหาวงเล็บเหลี่ยมที่เปิดแล้วไม่ปิด"
+          }
+        }
+      },
+      {
+        "title": "Kunpeng Checker Highlight Colors",
+        "properties": {
+          "kunpengChecker.customWordsColor": {
+            "type": "string",
+            "default": "rgba(255, 229, 100, 0.6)",
+            "description": "สีไฮไลต์สำหรับรายการคำที่กำหนดเอง"
+          },
+          "kunpengChecker.languageAndNumberColor": {
+            "type": "string",
+            "default": "rgba(173, 216, 230, 0.5)",
+            "description": "สีไฮไลต์สำหรับภาษาต่างประเทศ ภาษาอังกฤษ และตัวเลข"
+          },
+          "kunpengChecker.unbalancedCharactersColor": {
+            "type": "string",
+            "default": "rgba(255, 100, 100, 0.4)",
+            "description": "สีไฮไลต์สำหรับวงเล็บหรือเครื่องหมายคำพูดที่เปิดแล้วไม่ปิด"
+          }
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "22.x",
+    "typescript": "^5.9.3"
+  }
+}
+

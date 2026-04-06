@@ -1,0 +1,15 @@
+node_modules/
+out/
+*.vsix
+*.log
+
+# Secrets and local-only config
+.env
+.env.*
+*.env
+tokens.env
+user.json
+
+# Editor and OS files
+.DS_Store
+Thumbs.db

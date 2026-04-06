@@ -1,0 +1,34 @@
+# Exclude non-publish and local-only files from the VSIX
+
+# Secrets / tokens
+tokens.env
+
+# Docs only for manual distribution (do not ship to Marketplace)
+example-settings.json
+วิธีติดตั้ง.txt
+README-settings.md
+PUBLISH-GUIDE.md
+ขั้นตอน-publish.txt
+
+# Source and tests (publish compiled JS from out/ only)
+src/**
+**/*.ts
+out/test/**
+src/test/**
+
+# Build artifacts not needed at runtime
+**/*.map
+node_modules/**
+
+# Dev configs
+.eslint*
+eslint.config.mjs
+package-lock.json
+tsconfig.json
+
+# OS junk
+**/.DS_Store
+**/Thumbs.db
+
+# Keep LICENSE.md included (do NOT ignore)
+# Keep package.json and out/** included
