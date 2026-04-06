@@ -2,7 +2,7 @@
   "name": "kunpeng-checker",
   "displayName": "INK CHECKER",
   "description": "Word and writing consistency checker for Thai text",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "publisher": "kunpeng-dev",
   "icon": "inkrealm-logo.png",
   "repository": {
@@ -46,6 +46,22 @@
         "command": "ink-checker.toggleChecker",
         "title": "INK CHECKER: เปิด/ปิดการตรวจสอบ",
         "icon": "$(eye)"
+      }
+    ],
+    "menus": {
+      "extension/context": [
+        {
+          "command": "ink-checker.openWordList",
+          "when": "extension == 'kunpeng-dev.kunpeng-checker' || extension == 'inkrealm.ink-checker'",
+          "group": "2_configure@1"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "ink-checker.openWordList",
+        "key": "ctrl+alt+i",
+        "mac": "cmd+alt+i"
       }
     ],
     "configuration": [
@@ -155,4 +171,3 @@
     "typescript": "^5.9.3"
   }
 }
-

@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.0.9
+
+- Added **Extensions** view context menu entry to open **จัดการรายการคำ** (right‑click INK CHECKER → command appears in the configure group).
+- Default keybinding **Ctrl+Alt+I** (macOS **Cmd+Alt+I**) for **INK CHECKER: เปิดจัดการรายการคำ** (change in Keyboard Shortcuts if it conflicts).
+
 ## 0.0.5
 
 - Rebranded the extension to `INK CHECKER`
