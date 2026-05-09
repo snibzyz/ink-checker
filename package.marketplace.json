@@ -2,7 +2,7 @@
   "name": "kunpeng-checker",
   "displayName": "INK CHECKER",
   "description": "Word and writing consistency checker for Thai text",
-  "version": "0.0.9",
+  "version": "1.0.0",
   "publisher": "kunpeng-dev",
   "icon": "inkrealm-logo.png",
   "repository": {
@@ -33,27 +33,72 @@
   "contributes": {
     "commands": [
       {
+        "command": "ink-checker.openSettingsPanel",
+        "title": "INK CHECKER: เปิดหน้าตั้งค่า",
+        "icon": "$(settings-gear)"
+      },
+      {
         "command": "ink-checker.openWordList",
         "title": "INK CHECKER: เปิดจัดการรายการคำ",
         "icon": "$(list-unordered)"
       },
       {
-        "command": "ink-checker.openSettings",
-        "title": "INK CHECKER: เปิด Settings",
-        "icon": "$(settings-gear)"
+        "command": "ink-checker.openFormattingPanel",
+        "title": "INK CHECKER: เปิดหน้าจัดหน้ากระดาษ",
+        "icon": "$(symbol-text)"
       },
       {
         "command": "ink-checker.toggleChecker",
         "title": "INK CHECKER: เปิด/ปิดการตรวจสอบ",
         "icon": "$(eye)"
+      },
+      {
+        "command": "ink-checker.toggleFormatting",
+        "title": "INK CHECKER: เปิด/ปิดการจัดหน้ากระดาษ",
+        "icon": "$(symbol-text)"
+      },
+      {
+        "command": "ink-checker.openSettings",
+        "title": "INK CHECKER: เปิด Settings (เก่า)",
+        "icon": "$(settings)"
+      },
+      {
+        "command": "ink-checker.openFormattingMenu",
+        "title": "INK CHECKER: เมนูจัดหน้ากระดาษแบบเร็ว (QuickPick)",
+        "icon": "$(symbol-text)"
+      },
+      {
+        "command": "ink-checker.applyFormattingPreset",
+        "title": "INK CHECKER: ใช้ Preset หน้ากระดาษ",
+        "icon": "$(symbol-color)"
+      },
+      {
+        "command": "ink-checker.resetFormatting",
+        "title": "INK CHECKER: รีเซ็ตการจัดหน้ากระดาษ",
+        "icon": "$(discard)"
       }
     ],
     "menus": {
       "extension/context": [
         {
-          "command": "ink-checker.openWordList",
+          "command": "ink-checker.openSettingsPanel",
           "when": "extension == 'kunpeng-dev.kunpeng-checker' || extension == 'inkrealm.ink-checker'",
           "group": "2_configure@1"
+        },
+        {
+          "command": "ink-checker.openWordList",
+          "when": "extension == 'kunpeng-dev.kunpeng-checker' || extension == 'inkrealm.ink-checker'",
+          "group": "2_configure@2"
+        },
+        {
+          "command": "ink-checker.openFormattingPanel",
+          "when": "extension == 'kunpeng-dev.kunpeng-checker' || extension == 'inkrealm.ink-checker'",
+          "group": "2_configure@3"
+        },
+        {
+          "command": "ink-checker.toggleChecker",
+          "when": "extension == 'kunpeng-dev.kunpeng-checker' || extension == 'inkrealm.ink-checker'",
+          "group": "2_configure@4"
         }
       ]
     },
@@ -78,7 +123,11 @@
             "items": {
               "type": "string"
             },
-            "default": ["นาย", "แก", "ฉัน"],
+            "default": [
+              "นาย",
+              "แก",
+              "ฉัน"
+            ],
             "description": "รายการคำที่ต้องการตรวจสอบ"
           },
           "inkChecker.wordGroups": {
@@ -86,7 +135,9 @@
             "items": {
               "type": "string"
             },
-            "default": ["ข้า, ฉัน, เธอ, คุณ, เจ้า"],
+            "default": [
+              "ข้า, ฉัน, เธอ, คุณ, เจ้า"
+            ],
             "description": "กลุ่มคำที่สามารถสลับกันได้ โดยคั่นคำในแต่ละกลุ่มด้วยเครื่องหมายจุลภาค"
           }
         }
@@ -153,6 +204,87 @@
             "type": "string",
             "default": "rgba(255, 100, 100, 0.4)",
             "description": "สีไฮไลต์สำหรับวงเล็บหรือเครื่องหมายคำพูดที่เปิดแล้วไม่ปิด"
+          }
+        }
+      },
+      {
+        "title": "INK CHECKER Page Formatting (จัดหน้ากระดาษ)",
+        "properties": {
+          "inkChecker.formatting.enabled": {
+            "type": "boolean",
+            "default": false,
+            "order": 1,
+            "markdownDescription": "### เปิด/ปิด การจัดหน้ากระดาษ\n\nเมื่อเปิด — ไฟล์ `.txt` และ `.md` จะแสดงด้วย ฟอนต์ ขนาด ระยะห่างบรรทัด และย่อหน้า ตามที่ตั้งไว้ด้านล่าง\n\nเมื่อปิด — กลับไปแสดงตามค่าเดิมของ VS Code (ค่าที่ผู้ใช้เคยตั้งไว้เองจะถูกคืนกลับให้)\n\n💡 *เคล็ดลับ:* คลิกปุ่ม `📝 หน้ากระดาษ` ที่แถบล่างของ VS Code เพื่อเปิด/ปิดได้เร็วขึ้น*"
+          },
+          "inkChecker.formatting.fontFamily": {
+            "type": "string",
+            "default": "'TH Sarabun New', 'TH Sarabun PSK', Sarabun, 'Noto Sans Thai', 'Segoe UI', sans-serif",
+            "order": 2,
+            "markdownDescription": "### ฟอนต์ตัวอักษร\n\nค่าเริ่มต้น: **TH Sarabun** (ฟอนต์ราชการไทย ใช้ในเอกสารทั่วไป) — ถ้าเครื่องไม่มี จะเปลี่ยนไปใช้ฟอนต์ตัวถัดไปอัตโนมัติ\n\n**ฟอนต์ไทยยอดนิยม (ใส่ค่าตามนี้ได้):**\n- `'TH Sarabun New', sans-serif` — มาตรฐาน\n- `'Sarabun', sans-serif` — เวอร์ชั่น Google Fonts\n- `'Noto Sans Thai', sans-serif` — ฟรี โหลดง่าย\n- `'Kanit', sans-serif` — ทันสมัย\n- `'Cordia New', sans-serif` — Office\n- `'Angsana New', serif` — Office (มีหัว)\n\n💡 *แนะนำให้ใช้เมนูแถบล่างเลือกฟอนต์ จะง่ายกว่าพิมพ์เอง*"
+          },
+          "inkChecker.formatting.fontSize": {
+            "type": "number",
+            "default": 16,
+            "minimum": 8,
+            "maximum": 72,
+            "order": 3,
+            "markdownDescription": "### ขนาดตัวอักษร (px)\n\nใส่ตัวเลข 8 - 72\n\n**ค่าแนะนำ:**\n- `14` — เล็ก\n- `16` — มาตรฐาน\n- `18` — ใหญ่\n- `20` — ใหญ่มาก (เหมาะกับสายตา)"
+          },
+          "inkChecker.formatting.lineHeight": {
+            "type": "number",
+            "default": 1.6,
+            "minimum": 1,
+            "maximum": 3,
+            "order": 4,
+            "markdownDescription": "### ระยะห่างระหว่างบรรทัด\n\n**ค่าแนะนำ:**\n- `1.4` — แน่น (อ่านเอกสารทางการ)\n- `1.6` — มาตรฐาน\n- `1.8` — โปร่ง อ่านสบาย\n- `2.0` — อ่านง่ายมาก (เหมาะกับสายตา)\n\nค่าตัวเลขนี้คือ \"กี่เท่าของขนาดตัวอักษร\""
+          },
+          "inkChecker.formatting.paragraphIndent": {
+            "type": "number",
+            "default": 32,
+            "minimum": 0,
+            "maximum": 200,
+            "order": 5,
+            "markdownDescription": "### ระยะย่อหน้า (px)\n\nเว้นช่องว่างซ้ายของย่อหน้า — แบบ Word: **ทุกบรรทัด**ในย่อหน้าจะถูกย่อเข้าไป\n\n**ค่าแนะนำ:**\n- `0` — ไม่ย่อหน้า\n- `24` — ย่อน้อย\n- `32` — มาตรฐาน\n- `48` — ย่อเยอะ\n\n⚠️ *เป็นการแสดงผลเท่านั้น ตัวไฟล์ไม่ถูกแก้ — ถ้า copy ไปวางที่อื่นจะไม่มีช่องว่างนี้*"
+          },
+          "inkChecker.formatting.wordWrap": {
+            "type": "boolean",
+            "default": true,
+            "order": 6,
+            "markdownDescription": "### ตัดบรรทัดอัตโนมัติ\n\nเปิดให้บรรทัดยาว ๆ พับลงมาแสดงในหน้าจอเอง โดยไม่ต้องเลื่อนแนวนอน\n\nบรรทัดจะพับเมื่อยาวเกิน **ความกว้างที่ตั้งไว้** ด้านล่าง (เหมือน Word ที่มีหน้ากระดาษกำหนด)"
+          },
+          "inkChecker.formatting.wordWrapColumn": {
+            "type": "number",
+            "default": 90,
+            "minimum": 40,
+            "maximum": 200,
+            "order": 7,
+            "markdownDescription": "### ความกว้างบรรทัด (จำนวนตัวอักษร)\n\nบรรทัดจะพับลงมาเมื่อยาวเกินค่านี้ — ทำให้บรรทัดสั้นพอดีตา ไม่ลากยาวไปจนสุดหน้าจอ\n\n**ค่าแนะนำ:**\n- `60` — สั้น (เหมือนหนังสือ)\n- `80` — มาตรฐาน (เหมือน Word)\n- `90` — สบายตา\n- `120` — กว้างหน่อย\n- `200` — เกือบเต็มจอ\n\n💡 *ค่านี้จะใช้ก็ต่อเมื่อเปิด \"ตัดบรรทัดอัตโนมัติ\" ด้านบน*"
+          },
+          "inkChecker.formatting.applyToPlaintext": {
+            "type": "boolean",
+            "default": true,
+            "order": 8,
+            "markdownDescription": "### ใช้กับไฟล์ .txt\n\nไฟล์ข้อความปกติ (Plain Text)"
+          },
+          "inkChecker.formatting.applyToMarkdown": {
+            "type": "boolean",
+            "default": true,
+            "order": 9,
+            "markdownDescription": "### ใช้กับไฟล์ .md\n\nไฟล์ Markdown (เอกสาร, README, บันทึก)"
+          },
+          "inkChecker.formatting.configurationTarget": {
+            "type": "string",
+            "enum": [
+              "global",
+              "workspace"
+            ],
+            "enumDescriptions": [
+              "ใช้กับทุกโฟลเดอร์งาน (แนะนำ)",
+              "ใช้เฉพาะโฟลเดอร์งานนี้เท่านั้น"
+            ],
+            "default": "global",
+            "order": 10,
+            "markdownDescription": "### บันทึกค่าไว้ที่ไหน\n\n- **ทุกโฟลเดอร์งาน (global)** — ตั้งทีเดียวใช้ได้ทุกโปรเจกต์ (แนะนำ)\n- **เฉพาะโฟลเดอร์นี้ (workspace)** — ใช้เฉพาะงานปัจจุบัน เปิดงานอื่นจะไม่มีผล"
           }
         }
       }

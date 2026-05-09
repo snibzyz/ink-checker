@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.0.0
+
+Major release — UI overhaul and new "Page Formatting" feature.
+
+### Added
+- **Unified Settings Panel** with sidebar navigation — one place to configure everything (overview, checker, words, word groups, page formatting, colors, advanced).
+- **Page Formatting** for `.txt` and `.md` files: font family (defaults to TH Sarabun), font size, line height, paragraph indent (every line, like Word), and bounded word-wrap with adjustable column width.
+- **Presets** for one-click setup: TH Sarabun 14 / 16 / 18 / 20.
+- **Import / Export settings** as JSON (file save/open + clipboard copy) for backup or sharing across machines.
+- **Snapshot / restore** of original `editor.fontFamily` / `fontSize` / `lineHeight` / `wordWrap` per language — turning page formatting off restores user's original values rather than wiping them.
+- **Single status-bar button** in the footer that opens the unified settings panel directly.
+- **TH Sarabun** font is used throughout the settings UI.
+- **SVG icons** (Lucide-style) replace emoji decorations across the panel.
+
+### Changed
+- Status bar is now a single icon (was three) — click opens the settings panel.
+- "เปิดจัดการรายการคำ" right-click entry on the extension page now opens the unified panel scrolled to the words tab.
+- All previous commands still work but route into the new panel where applicable.
+
+### Fixed
+- Word-wrap is now `bounded` with a configurable column (default 90), so lines don't run to the full editor width.
+- Paragraph indent now applies to every line in a paragraph (matches Word), not only the first line.
+
 ## 0.0.9
 
 - Added **Extensions** view context menu entry to open **จัดการรายการคำ** (right‑click INK CHECKER → command appears in the configure group).

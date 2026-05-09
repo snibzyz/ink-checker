@@ -1,5 +1,15 @@
 import * as vscode from "vscode";
 import { WordListPanel } from "./wordListPanel";
+import { FormattingPanel } from "./formattingPanel";
+import { SettingsPanel } from "./settingsPanel";
+import {
+  setupFormatting,
+  openFormattingMenu,
+  toggleFormatting,
+  resetFormatting,
+  disposeFormatting,
+  getFormattingConfig,
+} from "./formatting";
 
 // ======================================================================
 // ส่วนที่ 1: ตัวแปรสำหรับจัดการ Extension
@@ -7,6 +17,9 @@ import { WordListPanel } from "./wordListPanel";
 
 let activeEditor = vscode.window.activeTextEditor;
 let statusBarItem: vscode.StatusBarItem;
+let formattingRefresh: (() => Promise<void>) | undefined;
+let formattingSummary: (() => string) | undefined;
+let lastWordCount = 0;
 let customWordsDecorationType: vscode.TextEditorDecorationType;
 let languageAndNumberDecorationType: vscode.TextEditorDecorationType;
 let unbalancedCharsDecorationType: vscode.TextEditorDecorationType;
@@ -372,15 +385,22 @@ function updateStatusBar(count: number) {
   const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
   const enabled = config.get<boolean>("enabled", true);
 
+  lastWordCount = count;
+
+  // Status bar รวม 1 ปุ่ม คลิกเปิดเมนูหลัก
+  const fmtSummary = formattingSummary ? formattingSummary() : "ปิด";
   if (enabled) {
-    statusBarItem.text = `$(search) INK: ${count} คำ`;
-    statusBarItem.tooltip = `พบคำที่ตรวจสอบ ${count} คำ\nคลิกเพื่อเปิดจัดการรายการคำ`;
-    statusBarItem.command = "ink-checker.openWordList";
+    statusBarItem.text = `$(edit) INK: ${count} คำ`;
   } else {
     statusBarItem.text = `$(eye-closed) INK: ปิด`;
-    statusBarItem.tooltip = "การตรวจสอบถูกปิด\nคลิกเพื่อเปิด";
-    statusBarItem.command = "ink-checker.toggleChecker";
   }
+  statusBarItem.tooltip = new vscode.MarkdownString(
+    `**INK CHECKER**\n\n` +
+      `- ตรวจสอบคำ: ${enabled ? `เปิด (พบ ${count} คำ)` : "ปิด"}\n` +
+      `- หน้ากระดาษ: ${fmtSummary}\n\n` +
+      `_คลิกเพื่อเปิดเมนู_`
+  );
+  statusBarItem.command = "ink-checker.openSettingsPanel";
   statusBarItem.show();
 }
 
@@ -577,12 +597,22 @@ export async function activate(context: vscode.ExtensionContext) {
   console.log("INK CHECKER is now active!");
   await migrateLegacySettings();
 
-  // สร้าง Status Bar Item
+  // สร้าง Status Bar Item รวม 1 ปุ่ม — คลิกเปิดเมนูหลัก
+  // [INK CHECKER]
   statusBarItem = vscode.window.createStatusBarItem(
     vscode.StatusBarAlignment.Right,
     100
   );
+  statusBarItem.command = "ink-checker.openMainMenu";
   context.subscriptions.push(statusBarItem);
+
+  // setupFormatting ไม่สร้าง status bar ของตัวเองแล้ว — แค่ event listeners
+  const formatting = setupFormatting(context);
+  formattingRefresh = formatting.refresh;
+  formattingSummary = formatting.getSummary;
+
+  // อัปเดตการตั้งค่าหน้ากระดาษรอบแรก
+  await formatting.refresh();
 
   // สร้าง Decoration Type
   createDecorationTypes();
@@ -901,21 +931,19 @@ export async function activate(context: vscode.ExtensionContext) {
 
   context.subscriptions.push(replaceWordCommand);
 
-  // คำสั่งเปิดหน้าต่างจัดการคำ
+  // คำสั่งเปิดหน้าต่างจัดการคำ → ใช้ SettingsPanel (sidebar) เปิดตรงไปที่ tab "รายการคำ"
   const openWordListCommand = vscode.commands.registerCommand(
     "ink-checker.openWordList",
     () => {
-      WordListPanel.createOrShow(context.extensionUri);
+      SettingsPanel.showTab("words");
     }
   );
 
   const openSettingsCommand = vscode.commands.registerCommand(
     "ink-checker.openSettings",
     async () => {
-      await vscode.commands.executeCommand(
-        "workbench.action.openSettings",
-        `@ext:${context.extension.id}`
-      );
+      // เปิด SettingsPanel ของเรา (UI สวยกว่าหน้า VS Code Settings ดิบ)
+      SettingsPanel.createOrShow();
     }
   );
 
@@ -947,11 +975,85 @@ export async function activate(context: vscode.ExtensionContext) {
     }
   );
 
+  // คำสั่งเปิดหน้าตั้งค่ารวม (sidebar nav + ทุกอย่างในที่เดียว)
+  const openSettingsPanelCommand = vscode.commands.registerCommand(
+    "ink-checker.openSettingsPanel",
+    async () => {
+      SettingsPanel.createOrShow();
+    }
+  );
+
+  // เปิดตรงไปที่ tab ใด tab หนึ่ง
+  const openSettingsTabCommand = vscode.commands.registerCommand(
+    "ink-checker.openSettingsTab",
+    async (tabId?: string) => {
+      SettingsPanel.showTab(tabId || "overview");
+    }
+  );
+
+  // คำสั่งเปิดหน้า Panel จัดหน้ากระดาษ (legacy / สำรอง)
+  const openFormattingPanelCommand = vscode.commands.registerCommand(
+    "ink-checker.openFormattingPanel",
+    async () => {
+      SettingsPanel.showTab("formatting");
+    }
+  );
+
+  // คำสั่งเปิดเมนูแบบเร็ว (QuickPick — สำรองสำหรับ command palette)
+  const openFormattingMenuCommand = vscode.commands.registerCommand(
+    "ink-checker.openFormattingMenu",
+    async () => {
+      await openFormattingMenu();
+    }
+  );
+
+  // คำสั่งเปิด/ปิดการจัดหน้ากระดาษ
+  const toggleFormattingCommand = vscode.commands.registerCommand(
+    "ink-checker.toggleFormatting",
+    async () => {
+      const newState = await toggleFormatting();
+      vscode.window.showInformationMessage(
+        newState ? "✓ เปิดจัดหน้ากระดาษแล้ว" : "✗ ปิดจัดหน้ากระดาษแล้ว"
+      );
+    }
+  );
+
+  // คำสั่งใช้ Preset (เปิด picker)
+  const applyFormattingPresetCommand = vscode.commands.registerCommand(
+    "ink-checker.applyFormattingPreset",
+    async () => {
+      await openFormattingMenu();
+    }
+  );
+
+  // คำสั่งรีเซ็ตการจัดหน้ากระดาษ
+  const resetFormattingCommand = vscode.commands.registerCommand(
+    "ink-checker.resetFormatting",
+    async () => {
+      const ok = await vscode.window.showWarningMessage(
+        "ต้องการรีเซ็ตการจัดหน้ากระดาษทั้งหมด?",
+        { modal: true },
+        "รีเซ็ต"
+      );
+      if (ok === "รีเซ็ต") {
+        await resetFormatting();
+        vscode.window.showInformationMessage("✓ รีเซ็ตการจัดหน้ากระดาษแล้ว");
+      }
+    }
+  );
+
   context.subscriptions.push(
+    openSettingsPanelCommand,
+    openSettingsTabCommand,
+    openFormattingPanelCommand,
     openWordListCommand,
     openSettingsCommand,
     toggleCheckerCommand,
-    refreshCommand
+    refreshCommand,
+    openFormattingMenuCommand,
+    toggleFormattingCommand,
+    applyFormattingPresetCommand,
+    resetFormattingCommand
   );
 
   // เริ่มต้นการทำงาน
@@ -1008,4 +1110,5 @@ export function deactivate() {
   if (unbalancedCharsDecorationType) {
     unbalancedCharsDecorationType.dispose();
   }
+  disposeFormatting();
 }
