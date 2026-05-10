@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.0.1
+
+### Fixed
+- Page Formatting: turning the master toggle off now reliably reverts editor font for `.txt` / `.md` even when the original-settings snapshot is missing or partial — the disable path always clears the language-scoped editor keys (`fontFamily`, `fontSize`, `lineHeight`, `wordWrap`, `wordWrapColumn`).
+
+### Changed
+- Settings panel: each of the four master toggles (Overview vs detail tab) now shows a small click-to-jump "sync" badge so it's obvious they mirror the same setting rather than being two independent switches.
+
 ## 1.0.0
 
 Major release — UI overhaul and new "Page Formatting" feature.
