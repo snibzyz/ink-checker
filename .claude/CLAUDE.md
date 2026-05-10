@@ -44,10 +44,33 @@ When the user asks to publish:
 
 ## Code shape
 
-- `src/extension.ts` — activation, decorations, commands.
+- `src/extension.ts` — activation, decorations, commands. **Calls `runMigrations(context)` before the first `formatting.refresh()`** — never skip this.
 - `src/settingsPanel.ts` — unified webview (sidebar nav + tabs). All UI is here.
-- `src/formatting.ts` — page-formatting logic, including the `editor.fontFamily` snapshot/restore for `.txt` and `.md`. Note: the disable path **must** always loop over `ALL_FORMATTABLE_LANGS × EDITOR_KEYS`, even when no snapshot exists, otherwise turning the toggle off won't actually clear the font.
+- `src/formatting.ts` — page-formatting logic, including the `editor.*` snapshot/restore for `.txt` and `.md`. Notes:
+  - The disable path **must** always loop over `ALL_FORMATTABLE_LANGS × EDITOR_KEYS`, even when no snapshot exists, otherwise turning the toggle off won't actually clear the font.
+  - The set of managed `EDITOR_KEYS` includes `wrappingStrategy: "advanced"` — required so Thai wrap doesn't split graphemes mid-word.
 - `src/wordListPanel.ts`, `src/formattingPanel.ts` — older standalone panels, kept for legacy command paths but most users land in the unified `settingsPanel`.
+
+## Migration system
+
+Anything that changes which `editor.*` keys we write, or how we write them, **must** add a migration step. The pattern lives in [src/formatting.ts](../src/formatting.ts):
+
+```ts
+const MIGRATION_VERSION_KEY = "inkChecker.formatting.migrationVersion";
+const CURRENT_MIGRATION_VERSION = 2;
+
+export async function runMigrations(context) {
+  const current = context.globalState.get(MIGRATION_VERSION_KEY, 0);
+  if (current >= CURRENT_MIGRATION_VERSION) return;
+  if (current < 2) await migrateToV2(context);
+  // if (current < 3) await migrateToV3(context);  ← add new steps here
+  await context.globalState.update(MIGRATION_VERSION_KEY, CURRENT_MIGRATION_VERSION);
+}
+```
+
+Why this matters: v1.0.0 wrote `[plaintext]/[markdown].editor.*` without snapshotting. v1.0.1 added a snapshot system but captured *after* v1.0.0's pollution, so the snapshot stored TH Sarabun as the user's "original" — toggle on/off was a visual no-op. v1.0.2 migrated it (cleared the keys, dropped the snapshot, re-applied cleanly).
+
+**Rule:** If you add or change any item in `EDITOR_KEYS`, or change what we write into one, bump `CURRENT_MIGRATION_VERSION` and add a `migrateToV<N>` that clears the affected keys at both Global and Workspace targets and discards the snapshot. `applyFormattingToVSCode` runs after `runMigrations` so it'll re-write whatever should be active.
 
 ## UI principles
 
