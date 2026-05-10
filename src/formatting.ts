@@ -18,6 +18,7 @@ const EDITOR_KEYS = [
   "lineHeight",
   "wordWrap",
   "wordWrapColumn",
+  "wrappingStrategy",
 ] as const;
 
 const DEFAULT_FONT_FAMILY =
@@ -105,8 +106,45 @@ let extensionContext: vscode.ExtensionContext | undefined;
 
 const SNAPSHOT_KEY = "inkChecker.formatting.snapshot.v1";
 
+// ----------------------------------------------------------------------
+// Migration — versioned, run-once. ทุก version bump ที่กระทบ editor.* settings
+// ต้องเพิ่ม migration step ใหม่ที่นี่ + bump CURRENT_MIGRATION_VERSION
+// ----------------------------------------------------------------------
+const MIGRATION_VERSION_KEY = "inkChecker.formatting.migrationVersion";
+const CURRENT_MIGRATION_VERSION = 2;
+
 type SnapshotLang = Record<string, unknown | null>;
 type Snapshot = Record<string, SnapshotLang>;
+
+export async function runMigrations(context: vscode.ExtensionContext): Promise<void> {
+  const current = context.globalState.get<number>(MIGRATION_VERSION_KEY, 0);
+  if (current >= CURRENT_MIGRATION_VERSION) return;
+
+  if (current < 2) {
+    await migrateToV2(context);
+  }
+  // เพิ่ม migration ขั้นถัดไปที่นี่ (ตัวอย่าง):
+  // if (current < 3) await migrateToV3(context);
+
+  await context.globalState.update(MIGRATION_VERSION_KEY, CURRENT_MIGRATION_VERSION);
+}
+
+// v1.0.2 migration: ก่อนหน้านี้ (v1.0.0/v1.0.1) อาจเขียน [plaintext]/[markdown].editor.*
+// ตกค้างไว้ + snapshot อาจปนเปื้อน (capture หลัง v1.0.0 set ค่าเรียบร้อยแล้ว)
+// → เคลียร์ทุก lang/key ที่ extension อาจเคยเขียน + ทิ้ง snapshot เก่า
+// applyFormattingToVSCode จะถูกเรียกหลัง migration เสร็จ จะเขียนค่าใหม่ให้เอง
+async function migrateToV2(context: vscode.ExtensionContext): Promise<void> {
+  for (const lang of ALL_FORMATTABLE_LANGS) {
+    const config = vscode.workspace.getConfiguration("editor", { languageId: lang });
+    for (const k of EDITOR_KEYS) {
+      await config.update(k, undefined, vscode.ConfigurationTarget.Global, true);
+      if (vscode.workspace.workspaceFolders?.length) {
+        await config.update(k, undefined, vscode.ConfigurationTarget.Workspace, true);
+      }
+    }
+  }
+  await context.globalState.update(SNAPSHOT_KEY, undefined);
+}
 
 // ----------------------------------------------------------------------
 // Read config
@@ -242,6 +280,9 @@ export async function applyFormattingToVSCode(): Promise<void> {
           target
         );
         await writeEditorSetting(lang, "wordWrapColumn", cfg.wordWrapColumn, target);
+        // "advanced" ใช้ Unicode line-break rules ของ browser engine — เคารพ
+        // grapheme cluster ภาษาไทย ไม่ตัดกลางสระ/วรรณยุกต์ (เช่น "ครั้ง" ไม่ถูกแยก)
+        await writeEditorSetting(lang, "wrappingStrategy", "advanced", target);
       } else {
         // ภาษานี้ถูกเอาออกจาก applyTo — คืนค่าเดิม (ถ้ามี snapshot)
         await restoreLangFromSnapshot(lang);

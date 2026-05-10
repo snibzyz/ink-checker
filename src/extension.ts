@@ -9,6 +9,7 @@ import {
   resetFormatting,
   disposeFormatting,
   getFormattingConfig,
+  runMigrations,
 } from "./formatting";
 
 // ======================================================================
@@ -610,6 +611,9 @@ export async function activate(context: vscode.ExtensionContext) {
   const formatting = setupFormatting(context);
   formattingRefresh = formatting.refresh;
   formattingSummary = formatting.getSummary;
+
+  // รัน migration ที่ค้างอยู่ก่อน apply ค่าใด ๆ — เพื่อล้าง state ตกค้างจาก version เก่า
+  await runMigrations(context);
 
   // อัปเดตการตั้งค่าหน้ากระดาษรอบแรก
   await formatting.refresh();

@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.0.2
+
+### Fixed
+- **Smart Thai word wrap** — set `editor.wrappingStrategy: "advanced"` for `.txt` and `.md` so wrap respects Thai grapheme clusters (no more breaking "ครั้ง" between the consonant and the combining vowel/tone marks).
+- **v1.0.0 → v1.0.2 upgrade migration** — clears the language-scoped `editor.*` settings the older versions wrote without snapshotting. The polluted snapshot captured by v1.0.1 caused toggle on/off to no-op visually; the migration scrubs it once on first activation.
+
+### Added
+- Versioned migration system (`MIGRATION_VERSION_KEY` + `runMigrations`) so future releases that need to clean up `editor.*` state can add a single migration step instead of one-off cleanup hacks.
+- `wrappingStrategy` to the managed `EDITOR_KEYS` set — enable writes it, disable/migration clears it.
+
 ## 1.0.1
 
 ### Fixed
