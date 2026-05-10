@@ -195,19 +195,29 @@ async function captureSnapshotIfNeeded(): Promise<void> {
 async function restoreSnapshotIfExists(): Promise<void> {
   if (!extensionContext) return;
   const snap = extensionContext.globalState.get<Snapshot>(SNAPSHOT_KEY);
-  if (!snap) return;
-  for (const [lang, ls] of Object.entries(snap)) {
+
+  // วนทุก lang/key ที่ extension อาจเคยเขียนเสมอ แม้ snapshot ไม่มี/ไม่ครบ —
+  // มิฉะนั้น toggle off จะไม่เคลียร์ฟอนต์ที่เราเซ็ตไว้
+  for (const lang of ALL_FORMATTABLE_LANGS) {
     const config = vscode.workspace.getConfiguration("editor", { languageId: lang });
-    for (const [k, v] of Object.entries(ls)) {
+    const ls = snap?.[lang];
+    for (const k of EDITOR_KEYS) {
+      const v = ls?.[k];
       await config.update(
         k,
-        v === null ? undefined : v,
+        v === null || v === undefined ? undefined : v,
         vscode.ConfigurationTarget.Global,
         true
       );
+      if (vscode.workspace.workspaceFolders?.length) {
+        await config.update(k, undefined, vscode.ConfigurationTarget.Workspace, true);
+      }
     }
   }
-  await extensionContext.globalState.update(SNAPSHOT_KEY, undefined);
+
+  if (snap) {
+    await extensionContext.globalState.update(SNAPSHOT_KEY, undefined);
+  }
 }
 
 export async function applyFormattingToVSCode(): Promise<void> {

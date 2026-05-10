@@ -674,6 +674,26 @@ export class SettingsPanel {
   .stat-card .stat-label { font-size: 13px; color: var(--vscode-descriptionForeground); margin-bottom: 4px; }
   .stat-card .stat-value { font-size: 18px; font-weight: 600; }
 
+  /* ─── Sync badge (เตือนว่าเป็น toggle ที่ผูกอยู่กับอีก tab) ─── */
+  .sync-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    margin-top: 6px;
+    padding: 2px 9px;
+    font-size: 11.5px;
+    font-family: inherit;
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    color: var(--accent);
+    border: 1px solid color-mix(in srgb, var(--accent) 32%, transparent);
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background .15s, border-color .15s;
+  }
+  .sync-badge:hover {
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  }
+  .sync-badge .icon { width: 11px; height: 11px; stroke-width: 2; }
+
   /* ─── Disabled ─── */
   .disabled-area { opacity: .55; pointer-events: none; }
 
@@ -784,6 +804,7 @@ export class SettingsPanel {
           <div class="label-group">
             <div class="label">ตรวจสอบคำ</div>
             <div class="hint">เปิด/ปิดการตรวจสอบทั้งหมด</div>
+            <button class="sync-badge" data-jump="checker" title="ผูกกับ switch ใน tab ตรวจสอบคำ — คลิกเพื่อข้ามไป"><svg class="icon"><use href="#i-link"/></svg> sync กับ tab “ตรวจสอบคำ”</button>
           </div>
           <label class="toggle"><input type="checkbox" id="quickChecker"/><span class="slider"></span></label>
         </div>
@@ -791,6 +812,7 @@ export class SettingsPanel {
           <div class="label-group">
             <div class="label">หน้ากระดาษ</div>
             <div class="hint">ใช้ฟอนต์ TH Sarabun + ย่อหน้า + ตัดบรรทัด</div>
+            <button class="sync-badge" data-jump="formatting" title="ผูกกับ switch ใน tab หน้ากระดาษ — คลิกเพื่อข้ามไป"><svg class="icon"><use href="#i-link"/></svg> sync กับ tab “หน้ากระดาษ”</button>
           </div>
           <label class="toggle"><input type="checkbox" id="quickFormatting"/><span class="slider"></span></label>
         </div>
@@ -813,6 +835,7 @@ export class SettingsPanel {
           <div class="label-group">
             <div class="label">เปิดการตรวจสอบทั้งหมด</div>
             <div class="hint">ปิดเมื่อต้องการพักการตรวจชั่วคราว</div>
+            <button class="sync-badge" data-jump="overview" title="ผูกกับ switch ใน tab ภาพรวม — คลิกเพื่อข้ามไป"><svg class="icon"><use href="#i-link"/></svg> sync กับ tab “ภาพรวม”</button>
           </div>
           <label class="toggle"><input type="checkbox" id="chk_enabled"/><span class="slider"></span></label>
         </div>
@@ -939,6 +962,7 @@ export class SettingsPanel {
           <div class="label-group">
             <div class="label">เปิดการจัดหน้ากระดาษ</div>
             <div class="hint" id="fmtMasterDesc">ปิดอยู่</div>
+            <button class="sync-badge" data-jump="overview" title="ผูกกับ switch ใน tab ภาพรวม — คลิกเพื่อข้ามไป"><svg class="icon"><use href="#i-link"/></svg> sync กับ tab “ภาพรวม”</button>
           </div>
           <label class="toggle"><input type="checkbox" id="fmt_enabled"/><span class="slider"></span></label>
         </div>
@@ -1207,6 +1231,14 @@ export class SettingsPanel {
       s.classList.toggle("active", s.id === "tab-" + id);
     });
   }
+
+  // ป้าย sync — คลิกเพื่อกระโดดไป tab ที่ผูกอยู่
+  document.querySelectorAll(".sync-badge").forEach((b) => {
+    b.addEventListener("click", () => {
+      const target = b.dataset.jump;
+      if (target) activateTab(target);
+    });
+  });
 
   // ─── load state ───
   function load(data) {
