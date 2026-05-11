@@ -594,32 +594,65 @@ async function migrateLegacySettings() {
 // ส่วนที่ 4: Activation และ Commands
 // ======================================================================
 
+/**
+ * แจ้งผู้ใช้ครั้งเดียวเมื่อ activate() เขียน config ไม่ได้ — มักเป็น
+ * syntax error ใน user settings.json (ลูกน้ำลอย, วงเล็บไม่ปิด, key ซ้ำ)
+ * ไม่ลบ ไม่แก้ไฟล์ใด ๆ — แค่ชี้จุดให้ผู้ใช้แก้เอง
+ */
+let settingsErrorNotified = false;
+async function notifySettingsWriteError(err: unknown): Promise<void> {
+  if (settingsErrorNotified) return;
+  settingsErrorNotified = true;
+
+  const message =
+    "INK CHECKER: เขียนการตั้งค่าไม่ได้ — settings.json ของคุณอาจมี syntax error (เช่น ลูกน้ำลอย, วงเล็บไม่ปิด, หรือ key ซ้ำ) ลองแก้แล้ว Reload Window";
+
+  const OPEN = "เปิด settings.json";
+  const RELOAD = "Reload Window";
+  const pick = await vscode.window.showWarningMessage(message, OPEN, RELOAD);
+  if (pick === OPEN) {
+    void vscode.commands.executeCommand(
+      "workbench.action.openSettingsJson"
+    );
+  } else if (pick === RELOAD) {
+    void vscode.commands.executeCommand("workbench.action.reloadWindow");
+  }
+  // log full error ลง Developer Tools console เผื่อ debug
+  console.error("[INK CHECKER] settings write error:", err);
+}
+
 export async function activate(context: vscode.ExtensionContext) {
   console.log("INK CHECKER is now active!");
-  await migrateLegacySettings();
 
-  // สร้าง Status Bar Item รวม 1 ปุ่ม — คลิกเปิดเมนูหลัก
-  // [INK CHECKER]
+  // ──────────────────────────────────────────────────────────────────────
+  // ลำดับ activation: "ของที่ไม่แตะ user settings" ทำก่อนเสมอ —
+  // status bar / decorations / commands / providers ต้องลงทะเบียนให้สำเร็จ
+  // แม้ settings.json จะ parse ไม่ได้ก็ตาม
+  //
+  // เหตุผล: ถ้า user settings.json มี syntax error (ลูกน้ำลอย, key ซ้ำ ฯลฯ)
+  // VS Code จะ reject ทุก config.update และ throw `Unable to write into user
+  // settings`. ก่อน v1.0.3 throw นี้ทำให้ activate() แตกก่อนถึง
+  // registerCommand → command ทุกตัวหาย + status bar icon หาย.
+  // ตอนนี้ I/O config ทั้งหมดถูกห่อ try/catch — ถ้าเขียนไม่ได้ก็ข้าม,
+  // ไม่ retry ไม่ลบ ไม่แตะ key อื่น และ migration version ไม่ bump เพื่อ
+  // ให้ retry ในการ activate ครั้งหน้าหลัง user แก้ syntax.
+  // ──────────────────────────────────────────────────────────────────────
+
+  // 1) Status bar — สร้างทันที (ไม่แตะ settings)
   statusBarItem = vscode.window.createStatusBarItem(
     vscode.StatusBarAlignment.Right,
     100
   );
-  statusBarItem.command = "ink-checker.openMainMenu";
+  statusBarItem.command = "ink-checker.openSettingsPanel";
   context.subscriptions.push(statusBarItem);
 
-  // setupFormatting ไม่สร้าง status bar ของตัวเองแล้ว — แค่ event listeners
+  // 2) Decoration types — อ่าน config (read-only) ไม่เขียน
+  createDecorationTypes();
+
+  // 3) setupFormatting — แค่ผูก event listeners + เก็บ context, ไม่เขียน
   const formatting = setupFormatting(context);
   formattingRefresh = formatting.refresh;
   formattingSummary = formatting.getSummary;
-
-  // รัน migration ที่ค้างอยู่ก่อน apply ค่าใด ๆ — เพื่อล้าง state ตกค้างจาก version เก่า
-  await runMigrations(context);
-
-  // อัปเดตการตั้งค่าหน้ากระดาษรอบแรก
-  await formatting.refresh();
-
-  // สร้าง Decoration Type
-  createDecorationTypes();
 
   // ลงทะเบียน Completion Provider สำหรับ " และ '
   const quoteCompletionProvider =
@@ -1059,6 +1092,41 @@ export async function activate(context: vscode.ExtensionContext) {
     applyFormattingPresetCommand,
     resetFormattingCommand
   );
+
+  // ──────────────────────────────────────────────────────────────────────
+  // 4) เริ่ม I/O ที่อาจล้มได้ — ทุกอันห่อ try/catch แยก
+  //
+  // ถ้า user settings.json มี syntax error VS Code จะโยน
+  // `Unable to write into user settings` จาก config.update ใด ๆ ก็ตาม
+  // (ทั้ง read+write — VS Code parse ไฟล์ตอนเขียน) เราจับเก็บไว้
+  // แสดงแจ้งเตือนรวมครั้งเดียวข้างล่าง — ไม่ทำลาย activation flow
+  // ──────────────────────────────────────────────────────────────────────
+  let settingsWriteError: unknown = undefined;
+
+  try {
+    await migrateLegacySettings();
+  } catch (err) {
+    settingsWriteError = settingsWriteError ?? err;
+    console.error("[INK CHECKER] migrateLegacySettings failed:", err);
+  }
+
+  try {
+    await runMigrations(context);
+  } catch (err) {
+    settingsWriteError = settingsWriteError ?? err;
+    console.error("[INK CHECKER] runMigrations failed:", err);
+  }
+
+  try {
+    await formatting.refresh();
+  } catch (err) {
+    settingsWriteError = settingsWriteError ?? err;
+    console.error("[INK CHECKER] formatting.refresh failed:", err);
+  }
+
+  if (settingsWriteError) {
+    void notifySettingsWriteError(settingsWriteError);
+  }
 
   // เริ่มต้นการทำงาน
   if (activeEditor) {

@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.0.3
+
+### Fixed
+- **Activation now survives a broken user `settings.json`.** Previously, if your user settings file had any syntax error (a stray comma, an unclosed brace, a duplicate key, etc.), VS Code rejected every `config.update` call our extension made during startup with `Unable to write into user settings`. That uncaught throw killed `activate()` before any command was registered, leaving the status bar icon missing and every `ink-checker.*` command reporting `command not found`. v1.0.3 reorders `activate()` so commands, providers, and the status bar register **before** any settings I/O, and wraps each of the three I/O steps (`migrateLegacySettings`, `runMigrations`, `formatting.refresh`) in its own try/catch. If a write fails, the extension stays alive, shows a single non-modal warning with quick links to **Open settings.json** / **Reload Window**, and retries the migration on the next activation — no settings are modified or deleted.
+- Same fix also covers the common multi-window case: opening a second or third VS Code window after corrupting `settings.json` no longer leaves those windows with a dead extension.
+
+### Changed
+- Status bar item is now created and given its click target (`ink-checker.openSettingsPanel`) up front, instead of pointing to the non-existent `ink-checker.openMainMenu` placeholder.
+
 ## 1.0.2
 
 ### Fixed
