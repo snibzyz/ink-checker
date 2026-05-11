@@ -1,65 +1,75 @@
-# INK CHECKER
+# INKCHECKER
 
-`INK CHECKER` is a VS Code extension for reviewing and formatting Thai writing.
+ปลั๊กอิน VS Code สำหรับ **นักเขียนไทย** — ช่วยตรวจคำซ้ำ คำต้องห้าม สัญลักษณ์ค้าง และจัดหน้ากระดาษไฟล์ `.txt` / `.md` ให้อ่านสบายตาด้วย **TH Sarabun**
 
-It helps flag words or patterns you want to watch for while editing, and includes a one-click "page formatting" mode that turns plain `.txt` and `.md` files into a comfortable Thai reading experience using **TH Sarabun**.
+---
 
-## Features
+## ทำอะไรได้บ้าง
 
-### Writing checker
-- Highlight custom words from your own watch list
-- Detect English text, numeric sequences, and other foreign-language characters
-- Detect unclosed curly quotes, double quotes, single quotes, parentheses, and brackets
-- Hover-replace using configurable word groups (e.g. swap between `ข้า / ฉัน / เธอ / คุณ / เจ้า`)
-- Customize highlight colors per rule group
+### ตรวจสอบงานเขียน
+- ไฮไลต์คำที่คุณกำหนดเอง (เช่น คำซ้ำที่ใช้บ่อย, คำต้องห้าม)
+- ตรวจ **ภาษาอังกฤษ / ตัวเลข / ภาษาต่างประเทศ** ที่ปนมาในข้อความไทย
+- ตรวจ **อัญประกาศ `"..."` `'...'` วงเล็บ `()` `[]`** ที่เปิดแล้วลืมปิด
+- คลิกขวาคำ → สลับเป็นคำในกลุ่มเดียวกันได้ทันที (เช่น `ข้า ↔ ฉัน ↔ เจ้า`)
 
-### Page formatting (new in 1.0)
-- Apply **TH Sarabun** (or any other font) plus size, line-height, paragraph indent, and word-wrap to `.txt` and `.md` files only
-- Paragraph indent applies to **every line** in a paragraph — matches Microsoft Word
-- Word-wrap is **bounded** to a configurable column width (default 90 characters) so lines stay readable
-- One-click presets: TH Sarabun 14 / 16 / 18 / 20
-- Original `editor.*` settings are snapshotted before changes — turning the feature off restores them
+### จัดหน้ากระดาษ (เฉพาะ `.txt` และ `.md`)
+- ฟอนต์ **TH Sarabun** ขนาด ระยะห่างบรรทัด ย่อหน้า — แบบ Word
+- **ย่อหน้าทุกบรรทัด** ในย่อหน้าเดียวกัน (ไม่ใช่แค่บรรทัดแรก)
+- **ตัดบรรทัดที่ความกว้างคงที่** — ไม่ลากยาวเต็มจอจนเมื่อยตา + ไม่ตัดกลางคำไทย
+- **Preset 1 คลิก:** TH Sarabun 14 / 16 / 18 / 20
+- เปิด/ปิดได้ทุกเมื่อ — ปิดแล้ว ค่าเดิมของคุณกลับมา (มี snapshot สำรองให้)
 
-### Settings panel
-- A single unified panel with a sidebar (overview / checker / words / word groups / page formatting / colors / advanced)
-- TH Sarabun font and SVG icons throughout
-- **Import / Export** settings as JSON, or copy to clipboard for sharing between machines
+### ใช้งานง่าย
+- **หน้าตั้งค่าเดียวจบ** มี sidebar นำทาง (ภาพรวม / ตรวจสอบคำ / รายการคำ / กลุ่มคำสลับ / หน้ากระดาษ / สีไฮไลต์ / ขั้นสูง)
+- **Import / Export** การตั้งค่าเป็น JSON — ย้ายเครื่อง / แชร์กับเพื่อนได้
 
-## Install
+---
 
-### VS Code Marketplace
+## ติดตั้ง
 
-```bash
+**VS Code Marketplace** (แนะนำสำหรับ VS Code ปกติ)
+```
 code --install-extension kunpeng-dev.kunpeng-checker
 ```
 
-### Open VSX
-
-- [INK CHECKER on Open VSX](https://open-vsx.org/extension/inkrealm/ink-checker)
-
-```bash
+**Open VSX** (สำหรับ Cursor, VSCodium, Windsurf ฯลฯ)
+```
 code --install-extension inkrealm.ink-checker
 ```
 
-### VSIX
+---
 
-Drag a packaged `.vsix` into VS Code, or:
+## เริ่มใช้งาน
 
-```bash
-code --install-extension kunpeng-checker-1.0.0.vsix
-```
+1. ติดตั้งเสร็จ → มองที่ **มุมขวาล่าง** ของ VS Code → เจอปุ่ม `$(edit) INK: N คำ`
+2. **คลิก** → หน้าตั้งค่าหลักเปิดขึ้นมา → ตั้งทุกอย่างได้จากที่เดียว
+3. ลองเลือก preset **TH Sarabun 16** ในแถบ "หน้ากระดาษ" เพื่อเริ่มแบบเร็ว
 
-## Usage
+**ทางลัด:** `Ctrl+Alt+I` (macOS: `Cmd+Alt+I`) → เปิดหน้าตั้งค่าตรงไปที่แท็บ "รายการคำ"
 
-After installation:
+---
 
-1. Click the **`INK: N คำ`** button in the status bar (bottom right) to open the settings panel.
-2. Sidebar navigation: switch between **ภาพรวม / ตรวจสอบคำ / รายการคำ / กลุ่มคำสลับ / หน้ากระดาษ / สีไฮไลต์ / ขั้นสูง**.
-3. For page formatting, go to **หน้ากระดาษ** and pick a preset (TH Sarabun 16 is the recommended default).
+## ปัญหาที่พบบ่อย
 
-Keyboard shortcut: **Ctrl+Alt+I** (macOS **Cmd+Alt+I**) opens the settings panel on the words tab.
+### กด command แล้วขึ้น `command 'ink-checker.X' not found` + ไม่เห็น icon ที่ status bar
+→ มักเป็นเพราะ `settings.json` ของคุณมี **syntax error** (ลูกน้ำลอย, วงเล็บไม่ปิด, key ซ้ำ) — VS Code reject ทุกการเขียน config ทำให้ extension start ไม่สำเร็จ
 
-## Commands
+**วิธีแก้:**
+1. `Ctrl+Shift+P` → `Preferences: Open User Settings (JSON)`
+2. แก้ syntax (VS Code จะขีดเส้นแดงให้ดู)
+3. `Ctrl+Shift+P` → `Developer: Reload Window`
+
+ตั้งแต่ **v1.0.3** เป็นต้นไป extension จะไม่ตายเงียบอีก — มีแจ้งเตือนพร้อมปุ่มลัด "เปิด settings.json" / "Reload Window" ให้
+
+### ปิดจัดหน้ากระดาษแล้วฟอนต์ไม่กลับ
+→ อัปเดตเป็น **v1.0.2** ขึ้นไป — มี migration เคลียร์ snapshot ที่ปนเปื้อนจากเวอร์ชันเก่าให้อัตโนมัติครั้งเดียว
+
+### คำไทยถูกตัดกลางคำเวลา wrap
+→ อัปเดตเป็น **v1.0.2** ขึ้นไป — ตั้ง `editor.wrappingStrategy: "advanced"` ให้แล้ว เคารพ grapheme cluster ของภาษาไทย (เช่น "ครั้ง" ไม่ถูกแยกพยัญชนะกับสระ)
+
+---
+
+## คำสั่งทั้งหมด (Command Palette: `Ctrl+Shift+P`)
 
 - `INK CHECKER: เปิดหน้าตั้งค่า`
 - `INK CHECKER: เปิดจัดการรายการคำ`
@@ -70,63 +80,23 @@ Keyboard shortcut: **Ctrl+Alt+I** (macOS **Cmd+Alt+I**) opens the settings panel
 - `INK CHECKER: ใช้ Preset หน้ากระดาษ`
 - `INK CHECKER: รีเซ็ตการจัดหน้ากระดาษ`
 
-## Settings
+---
 
-### Checker
-- `inkChecker.enabled`
-- `inkChecker.customWords`
-- `inkChecker.wordGroups`
-- `inkChecker.checkEnglish`
-- `inkChecker.checkNumbers`
-- `inkChecker.checkForeignLanguages`
-- `inkChecker.checkUnclosedFancyQuotes`
-- `inkChecker.checkUnclosedDoubleQuotes`
-- `inkChecker.checkUnclosedSingleQuotes`
-- `inkChecker.checkUnclosedParentheses`
-- `inkChecker.checkUnclosedBrackets`
-
-### Highlight colors
-- `inkChecker.customWordsColor`
-- `inkChecker.languageAndNumberColor`
-- `inkChecker.unbalancedCharactersColor`
-
-### Page formatting
-- `inkChecker.formatting.enabled`
-- `inkChecker.formatting.fontFamily`
-- `inkChecker.formatting.fontSize`
-- `inkChecker.formatting.lineHeight`
-- `inkChecker.formatting.paragraphIndent`
-- `inkChecker.formatting.wordWrap`
-- `inkChecker.formatting.wordWrapColumn`
-- `inkChecker.formatting.applyToPlaintext`
-- `inkChecker.formatting.applyToMarkdown`
-- `inkChecker.formatting.configurationTarget`
-
-## Development
+## สำหรับนักพัฒนา
 
 ```bash
 npm install
 npm run compile
 ```
 
-To run the extension locally, open the project in VS Code and press `F5`.
+กด `F5` ใน VS Code → Extension Development Host
 
-## Release Targets
+รายละเอียดการ publish แบบ dual (Marketplace + Open VSX) อยู่ใน [`.claude/CLAUDE.md`](.claude/CLAUDE.md)
 
-This repository supports two publish targets:
-
-- `package.marketplace.json` for `kunpeng-dev.kunpeng-checker` (VS Code Marketplace)
-- `package.openvsx.json` for `inkrealm.ink-checker` (Open VSX)
-
-```bash
-npm run use:marketplace   # then: npx vsce publish -p $vsce_token
-npm run use:openvsx       # then: npx ovsx publish  -p $ovsx_token
-```
-
-## Repository
-
-- [GitHub](https://github.com/snibzyz/ink-checker)
+---
 
 ## License
 
-MIT. See `LICENSE.md`.
+MIT — ดู [`LICENSE.md`](LICENSE.md)
+
+[Repository on GitHub](https://github.com/snibzyz/ink-checker)

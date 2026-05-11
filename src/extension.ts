@@ -1128,6 +1128,11 @@ export async function activate(context: vscode.ExtensionContext) {
     void notifySettingsWriteError(settingsWriteError);
   }
 
+  // โชว์ status bar icon ทันที — ไม่ขึ้นกับว่ามี active editor หรือไม่
+  // (เดิม updateDecorations จะ return ออกก่อนถ้า !activeEditor →
+  //  icon ไม่ขึ้นจนกว่าจะเปิดไฟล์แรก)
+  updateStatusBar(0);
+
   // เริ่มต้นการทำงาน
   if (activeEditor) {
     triggerUpdateDecorations();

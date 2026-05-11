@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.0.4
+
+### Fixed
+- **Status bar icon now appears immediately after activation**, even when no editor is open. Previously the icon was only shown the first time `updateDecorations` ran end-to-end, and that path returned early without calling `statusBarItem.show()` when there was no active editor — so opening VS Code on the welcome page left the INKCHECKER footer button missing until the user opened a file.
+
+### Changed
+- Display name shortened from `INK CHECKER` to `INKCHECKER` (no space) in both Marketplace and Open VSX listings.
+
 ## 1.0.3
 
 ### Fixed
