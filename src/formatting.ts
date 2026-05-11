@@ -124,7 +124,7 @@ const SNAPSHOT_KEY = "inkChecker.formatting.snapshot.v1";
 // ต้องเพิ่ม migration step ใหม่ที่นี่ + bump CURRENT_MIGRATION_VERSION
 // ----------------------------------------------------------------------
 const MIGRATION_VERSION_KEY = "inkChecker.formatting.migrationVersion";
-const CURRENT_MIGRATION_VERSION = 2;
+const CURRENT_MIGRATION_VERSION = 3;
 
 type SnapshotLang = Record<string, unknown | null>;
 type Snapshot = Record<string, SnapshotLang>;
@@ -136,8 +136,9 @@ export async function runMigrations(context: vscode.ExtensionContext): Promise<v
   if (current < 2) {
     await migrateToV2(context);
   }
-  // เพิ่ม migration ขั้นถัดไปที่นี่ (ตัวอย่าง):
-  // if (current < 3) await migrateToV3(context);
+  if (current < 3) {
+    await migrateToV3();
+  }
 
   await context.globalState.update(MIGRATION_VERSION_KEY, CURRENT_MIGRATION_VERSION);
 }
@@ -157,6 +158,61 @@ async function migrateToV2(context: vscode.ExtensionContext): Promise<void> {
     }
   }
   await context.globalState.update(SNAPSHOT_KEY, undefined);
+}
+
+// v1.0.6 migration: รุ่นก่อน (v1.0.0–v1.0.5) เคลียร์ key รายตัวด้วย
+// config.update(k, undefined) แต่ไม่ลบ container "[markdown]"/"[plaintext]"
+// → ทิ้ง "[markdown]": {} (หรือเลวร้ายกว่า: "[markdown]": { , }) ค้างไว้
+// ทำให้ settings.json รก / parse fail ในบาง edge case
+// → migration นี้: ถ้า container ว่าง (ไม่มี key ของ user เอง) → ลบทิ้ง
+async function migrateToV3(): Promise<void> {
+  for (const lang of ALL_FORMATTABLE_LANGS) {
+    await clearLanguageContainerIfEmpty(lang, vscode.ConfigurationTarget.Global);
+    if (vscode.workspace.workspaceFolders?.length) {
+      await clearLanguageContainerIfEmpty(lang, vscode.ConfigurationTarget.Workspace);
+    }
+  }
+}
+
+/**
+ * ลบ container "[<lang>]" ถ้ามันว่าง (เพื่อไม่ทิ้ง {} ค้าง) — ที่ scope
+ * ที่ระบุเท่านั้น (Global / Workspace) ตรวจผ่าน config.inspect() ถ้าค่า
+ * ในนั้นมี user-managed keys อื่น (เช่น editor.formatOnSave) → ไม่ลบ
+ *
+ * เหตุที่จำเป็น: vscode.workspace.getConfiguration("editor", {languageId})
+ * .update(key, undefined) ลบเฉพาะ key ในนั้น แต่ตัว container "[markdown]"
+ * เอง VS Code ไม่เก็บกวาดให้ — ต้องเรียก root config.update("[markdown]",
+ * undefined) แยก
+ */
+async function clearLanguageContainerIfEmpty(
+  lang: string,
+  target: vscode.ConfigurationTarget
+): Promise<void> {
+  const rootConfig = vscode.workspace.getConfiguration();
+  const key = `[${lang}]`;
+  const inspect = rootConfig.inspect<Record<string, unknown>>(key);
+  if (!inspect) return;
+
+  const valueAtTarget =
+    target === vscode.ConfigurationTarget.Global
+      ? inspect.globalValue
+      : target === vscode.ConfigurationTarget.Workspace
+      ? inspect.workspaceValue
+      : inspect.workspaceFolderValue;
+
+  if (!valueAtTarget) return; // ไม่มี container ที่ scope นี้ — ไม่ต้องทำอะไร
+
+  // ลบเฉพาะกรณีว่างจริง — ถ้ามี key อื่น (เช่น formatOnSave ของ user) → ไม่แตะ
+  if (
+    typeof valueAtTarget === "object" &&
+    Object.keys(valueAtTarget).length === 0
+  ) {
+    try {
+      await rootConfig.update(key, undefined, target);
+    } catch {
+      // เขียนไม่ได้ก็ปล่อยไป — caller (activate) มี try/catch ห่อหุ้มอีกชั้น
+    }
+  }
 }
 
 // ----------------------------------------------------------------------
@@ -264,6 +320,11 @@ async function restoreSnapshotIfExists(): Promise<void> {
         await config.update(k, undefined, vscode.ConfigurationTarget.Workspace, true);
       }
     }
+    // หลังเคลียร์ครบ — ลบ container ถ้าว่าง (กัน "[lang]": {} ค้างใน settings.json)
+    await clearLanguageContainerIfEmpty(lang, vscode.ConfigurationTarget.Global);
+    if (vscode.workspace.workspaceFolders?.length) {
+      await clearLanguageContainerIfEmpty(lang, vscode.ConfigurationTarget.Workspace);
+    }
   }
 
   if (snap) {
@@ -321,6 +382,8 @@ async function restoreLangFromSnapshot(lang: string): Promise<void> {
       true
     );
   }
+  // ถ้าใน "[lang]" ไม่เหลือ key ของ user เอง → ลบ container ทิ้ง
+  await clearLanguageContainerIfEmpty(lang, vscode.ConfigurationTarget.Global);
 }
 
 // ----------------------------------------------------------------------
@@ -433,6 +496,11 @@ export async function resetFormatting(): Promise<void> {
       if (vscode.workspace.workspaceFolders?.length) {
         await clearEditorSetting(lang, k, vscode.ConfigurationTarget.Workspace);
       }
+    }
+    // ลบ container "[lang]" ที่อาจเหลือว่างทั้งสอง scope
+    await clearLanguageContainerIfEmpty(lang, vscode.ConfigurationTarget.Global);
+    if (vscode.workspace.workspaceFolders?.length) {
+      await clearLanguageContainerIfEmpty(lang, vscode.ConfigurationTarget.Workspace);
     }
   }
   updateIndentDecorationsAll();

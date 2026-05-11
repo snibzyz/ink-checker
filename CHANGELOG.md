@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.0.6
+
+### Fixed
+- **Root cause of "เขียนการตั้งค่าไม่ได้" loop**: when the formatting toggle cleared every `editor.*` key inside `"[markdown]"` / `"[plaintext]"`, VS Code emptied the contents but left the container behind — sometimes as a parsable `"[markdown]": {}`, but in at least one observed case as `"[markdown]": { , }` with a stray comma that made the entire `settings.json` unparseable. Once the file was unparseable, every subsequent `config.update` from any extension threw `Unable to write into user settings`, so toggling INK CHECKER's master switches looked like it did nothing and the warning kept resurfacing. v1.0.6 now calls `clearLanguageContainerIfEmpty()` after every clear path (`restoreSnapshotIfExists`, `restoreLangFromSnapshot`, `resetFormatting`) — if the container has zero keys at the target scope, the `[lang]` entry itself is removed via `getConfiguration().update("[markdown]", undefined, target)` so VS Code can't leave a stray container with a dangling comma.
+- **Migration v3** sweeps the same cleanup over existing installs: any user who already has an empty `"[markdown]": {}` or `"[plaintext]": {}` from v1.0.0–v1.0.5 gets the container removed on first launch, without touching the keys they put there themselves.
+
+### Added
+- **"ซ่อมให้อัตโนมัติ" button** in the settings-write-error notification (new module `src/settingsRepair.ts`). When clicked, INK CHECKER locates `settings.json` across known VS Code / Insiders / Cursor / VSCodium / Windsurf install paths, scans only for the specific orphan-comma pattern `"[markdown|plaintext]": { , }` that this extension is known to cause, shows a modal preview of every match with the line number, and — on confirm — writes a timestamped backup (`settings.inkchecker-backup-<ts>.json`) before replacing the broken blocks with `"[markdown|plaintext]": {}`. If no recognised pattern is found, it falls back to the existing "เปิด settings.json" path and refuses to touch the file. The repair never edits any key other than the orphan-comma block, so it cannot make a different kind of breakage worse.
+
 ## 1.0.5
 
 ### Fixed

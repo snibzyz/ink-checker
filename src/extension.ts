@@ -11,6 +11,7 @@ import {
   getFormattingConfig,
   runMigrations,
 } from "./formatting";
+import { attemptRepair } from "./settingsRepair";
 
 // ======================================================================
 // ส่วนที่ 1: ตัวแปรสำหรับจัดการ Extension
@@ -597,7 +598,10 @@ async function migrateLegacySettings() {
 /**
  * แจ้งผู้ใช้ครั้งเดียวเมื่อ activate() เขียน config ไม่ได้ — มักเป็น
  * syntax error ใน user settings.json (ลูกน้ำลอย, วงเล็บไม่ปิด, key ซ้ำ)
- * ไม่ลบ ไม่แก้ไฟล์ใด ๆ — แค่ชี้จุดให้ผู้ใช้แก้เอง
+ *
+ * v1.0.6: เพิ่มปุ่ม "ซ่อมให้อัตโนมัติ" — เจาะจงแก้เฉพาะ pattern
+ * "[markdown]": { , } / "[plaintext]": { , } ที่ตัว extension นี้เคยทำพังเอง
+ * จะ backup ไฟล์ก่อนเขียนเสมอ + ขึ้น modal ยืนยัน → ไม่แตะ key อื่น
  */
 let settingsErrorNotified = false;
 export async function notifySettingsWriteError(err: unknown): Promise<void> {
@@ -605,20 +609,71 @@ export async function notifySettingsWriteError(err: unknown): Promise<void> {
   settingsErrorNotified = true;
 
   const message =
-    "INK CHECKER: เขียนการตั้งค่าไม่ได้ — settings.json ของคุณอาจมี syntax error (เช่น ลูกน้ำลอย, วงเล็บไม่ปิด, หรือ key ซ้ำ) ลองแก้แล้ว Reload Window";
+    "INK CHECKER: เขียนการตั้งค่าไม่ได้ — settings.json ของคุณอาจมี syntax error (เช่น ลูกน้ำลอย, วงเล็บไม่ปิด, หรือ key ซ้ำ)";
 
+  const REPAIR = "ซ่อมให้อัตโนมัติ";
   const OPEN = "เปิด settings.json";
   const RELOAD = "Reload Window";
-  const pick = await vscode.window.showWarningMessage(message, OPEN, RELOAD);
-  if (pick === OPEN) {
-    void vscode.commands.executeCommand(
-      "workbench.action.openSettingsJson"
-    );
+  const pick = await vscode.window.showWarningMessage(
+    message,
+    REPAIR,
+    OPEN,
+    RELOAD
+  );
+  if (pick === REPAIR) {
+    await runRepairFlow();
+  } else if (pick === OPEN) {
+    void vscode.commands.executeCommand("workbench.action.openSettingsJson");
   } else if (pick === RELOAD) {
     void vscode.commands.executeCommand("workbench.action.reloadWindow");
   }
   // log full error ลง Developer Tools console เผื่อ debug
   console.error("[INK CHECKER] settings write error:", err);
+}
+
+/**
+ * เรียก attemptRepair() แล้วรายงานผลให้ผู้ใช้ — ถ้าซ่อมสำเร็จ ถาม reload
+ * ถ้าไม่เจอ pattern ที่รู้จัก fallback ไปเปิด settings.json ปกติ
+ */
+async function runRepairFlow(): Promise<void> {
+  const result = await attemptRepair();
+  switch (result.kind) {
+    case "ok": {
+      const RELOAD = "Reload Window";
+      const pick = await vscode.window.showInformationMessage(
+        `✓ ซ่อมเสร็จ — แก้ ${result.matches} จุด\nไฟล์สำรอง: ${result.backupPath}\n\nกด Reload Window เพื่อให้ VS Code โหลด settings ใหม่`,
+        { modal: true },
+        RELOAD
+      );
+      if (pick === RELOAD) {
+        void vscode.commands.executeCommand("workbench.action.reloadWindow");
+      }
+      break;
+    }
+    case "not-applicable": {
+      const OPEN = "เปิด settings.json";
+      const pick = await vscode.window.showWarningMessage(
+        `INK CHECKER ซ่อมอัตโนมัติให้ไม่ได้ — ${result.reason}`,
+        OPEN
+      );
+      if (pick === OPEN) {
+        void vscode.commands.executeCommand(
+          "workbench.action.openSettingsJson"
+        );
+      }
+      break;
+    }
+    case "no-file": {
+      vscode.window.showErrorMessage(
+        `INK CHECKER: หา settings.json ไม่เจอ (ลอง: ${result.tried.length} path)`
+      );
+      break;
+    }
+    case "error": {
+      vscode.window.showErrorMessage(`INK CHECKER: ${result.message}`);
+      break;
+    }
+  }
 }
 
 export async function activate(context: vscode.ExtensionContext) {
