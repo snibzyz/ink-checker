@@ -600,7 +600,7 @@ async function migrateLegacySettings() {
  * ไม่ลบ ไม่แก้ไฟล์ใด ๆ — แค่ชี้จุดให้ผู้ใช้แก้เอง
  */
 let settingsErrorNotified = false;
-async function notifySettingsWriteError(err: unknown): Promise<void> {
+export async function notifySettingsWriteError(err: unknown): Promise<void> {
   if (settingsErrorNotified) return;
   settingsErrorNotified = true;
 

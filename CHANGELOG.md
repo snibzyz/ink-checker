@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.0.5
+
+### Fixed
+- **Settings panel toggles now handle a broken `settings.json` like activation does.** v1.0.3 made `activate()` survive a malformed user settings file, but the runtime write paths in the unified settings webview (`_updateChecker`, `_updateFormatting`, `_updateColors`, `_update`, `_applyPreset`, `resetFormatting`) still did bare `await config.update(...)` with no try/catch. When the user toggled (e.g.) page formatting off with a syntax error in `settings.json` — a stray comma in an empty `"[plaintext]": { , }` block was the trigger this time — the optimistic toggle in the webview *looked* flipped but VS Code silently rejected the write, no `onDidChangeConfiguration` event fired, `formatting.refresh()` never ran, and the font was never restored. v1.0.5 routes every panel write through a `_runWrite` helper that catches the throw, calls the same `notifySettingsWriteError` shown at activation (linking to **Open settings.json** / **Reload Window**), and re-broadcasts the real state to the webview so the toggle visibly bounces back to its actual position instead of lying.
+
+### Added
+- **"Tahoma 14 (Windows ดั้งเดิม)" preset** — Windows-native Thai backup font, for the case where Sarabun renders wrong or isn't installed.
+- **"ค่า VS Code ปกติ" preset** — one-click escape hatch that runs the full `resetFormatting()` path: clears `inkChecker.formatting.*` at Global + Workspace, restores the snapshot (or clears the keys outright if the snapshot is gone), and clears any workspace-level `editor.*` overrides we wrote in `[plaintext]`/`[markdown]`. Use this if both the snapshot and the regular toggle-off have failed.
+
 ## 1.0.4
 
 ### Fixed

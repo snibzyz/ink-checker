@@ -46,6 +46,19 @@ type Preset = {
 
 const PRESETS: Preset[] = [
   {
+    id: "tahoma-14",
+    label: "Tahoma 14 (Windows ดั้งเดิม)",
+    description: "ฟอนต์ระบบ Windows สำรอง — ถ้า Sarabun เพี้ยน",
+    values: {
+      fontFamily: "Tahoma, 'Noto Sans Thai', sans-serif",
+      fontSize: 14,
+      lineHeight: 1.4,
+      paragraphIndent: 0,
+      wordWrap: true,
+      wordWrapColumn: 90,
+    },
+  },
+  {
     id: "sarabun-16",
     label: "TH Sarabun 16 (มาตรฐาน)",
     description: "font ราชการ ขนาดอ่านง่าย",

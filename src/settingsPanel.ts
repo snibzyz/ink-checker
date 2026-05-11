@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { getFormattingConfig, resetFormatting } from "./formatting";
+import { notifySettingsWriteError } from "./extension";
 
 const CONFIG_SECTION = "inkChecker";
 
@@ -43,7 +44,7 @@ export class SettingsPanel {
             await this._applyPreset(msg.preset);
             break;
           case "resetFormatting":
-            await resetFormatting();
+            await this._runWrite(() => resetFormatting());
             break;
           case "openVscodeSettings":
             await vscode.commands.executeCommand(
@@ -127,37 +128,71 @@ export class SettingsPanel {
     });
   }
 
+  // ทุกการเขียน config ห่อด้วยตัวนี้ — ถ้า settings.json พัง (ลูกน้ำลอย,
+  // วงเล็บไม่ปิด ฯลฯ) VS Code จะ throw `Unable to write into user settings`.
+  // เราจะ: (1) แจ้งผู้ใช้, (2) ส่ง state จริงกลับ webview เพื่อให้ toggle
+  // เด้งกลับตำแหน่งที่แท้จริง — ไม่ใช่ค้างอยู่ใน optimistic UI
+  private async _runWrite(fn: () => Promise<void>): Promise<void> {
+    try {
+      await fn();
+    } catch (err) {
+      console.error("[INK CHECKER] settings panel write failed:", err);
+      void notifySettingsWriteError(err);
+      this._sendAll();
+    }
+  }
+
   private async _update(key: string, value: unknown) {
-    const c = vscode.workspace.getConfiguration(CONFIG_SECTION);
-    await c.update(key, value, vscode.ConfigurationTarget.Global);
-    vscode.commands.executeCommand("ink-checker.refresh");
+    await this._runWrite(async () => {
+      const c = vscode.workspace.getConfiguration(CONFIG_SECTION);
+      await c.update(key, value, vscode.ConfigurationTarget.Global);
+      vscode.commands.executeCommand("ink-checker.refresh");
+    });
   }
 
   private async _updateChecker(values: Record<string, unknown>) {
-    const c = vscode.workspace.getConfiguration(CONFIG_SECTION);
-    for (const [k, v] of Object.entries(values)) {
-      await c.update(k, v, vscode.ConfigurationTarget.Global);
-    }
-    vscode.commands.executeCommand("ink-checker.refresh");
+    await this._runWrite(async () => {
+      const c = vscode.workspace.getConfiguration(CONFIG_SECTION);
+      for (const [k, v] of Object.entries(values)) {
+        await c.update(k, v, vscode.ConfigurationTarget.Global);
+      }
+      vscode.commands.executeCommand("ink-checker.refresh");
+    });
   }
 
   private async _updateFormatting(values: Record<string, unknown>) {
-    const c = vscode.workspace.getConfiguration(CONFIG_SECTION);
-    for (const [k, v] of Object.entries(values)) {
-      await c.update(`formatting.${k}`, v, vscode.ConfigurationTarget.Global);
-    }
+    await this._runWrite(async () => {
+      const c = vscode.workspace.getConfiguration(CONFIG_SECTION);
+      for (const [k, v] of Object.entries(values)) {
+        await c.update(`formatting.${k}`, v, vscode.ConfigurationTarget.Global);
+      }
+    });
   }
 
   private async _updateColors(values: Record<string, string>) {
-    const c = vscode.workspace.getConfiguration(CONFIG_SECTION);
-    for (const [k, v] of Object.entries(values)) {
-      await c.update(k, v, vscode.ConfigurationTarget.Global);
-    }
-    vscode.commands.executeCommand("ink-checker.refresh");
+    await this._runWrite(async () => {
+      const c = vscode.workspace.getConfiguration(CONFIG_SECTION);
+      for (const [k, v] of Object.entries(values)) {
+        await c.update(k, v, vscode.ConfigurationTarget.Global);
+      }
+      vscode.commands.executeCommand("ink-checker.refresh");
+    });
   }
 
   private async _applyPreset(presetId: string) {
+    // ปุ่ม "ล้างกลับเป็น VS Code ปกติ" — ทาง escape สุดท้ายถ้า snapshot
+    // เพี้ยน / settings.json พัง / preset อื่นใช้ไม่ได้: ลบ inkChecker.formatting.*
+    // + editor.* ใน [plaintext]/[markdown] ทุก target จนหมด แล้วปิด formatting
+    if (presetId === "vscode-default") {
+      await this._runWrite(() => resetFormatting());
+      return;
+    }
+
     const presets: Record<string, Record<string, unknown>> = {
+      "tahoma-14": {
+        fontFamily: "Tahoma, 'Noto Sans Thai', sans-serif",
+        fontSize: 14, lineHeight: 1.4, paragraphIndent: 0, wordWrap: true, wordWrapColumn: 90,
+      },
       "sarabun-14": {
         fontFamily: "'TH Sarabun New', 'TH Sarabun PSK', Sarabun, 'Noto Sans Thai', sans-serif",
         fontSize: 14, lineHeight: 1.5, paragraphIndent: 24, wordWrap: true, wordWrapColumn: 100,
@@ -177,11 +212,13 @@ export class SettingsPanel {
     };
     const v = presets[presetId];
     if (!v) return;
-    const c = vscode.workspace.getConfiguration(CONFIG_SECTION);
-    for (const [k, val] of Object.entries(v)) {
-      await c.update(`formatting.${k}`, val, vscode.ConfigurationTarget.Global);
-    }
-    await c.update("formatting.enabled", true, vscode.ConfigurationTarget.Global);
+    await this._runWrite(async () => {
+      const c = vscode.workspace.getConfiguration(CONFIG_SECTION);
+      for (const [k, val] of Object.entries(v)) {
+        await c.update(`formatting.${k}`, val, vscode.ConfigurationTarget.Global);
+      }
+      await c.update("formatting.enabled", true, vscode.ConfigurationTarget.Global);
+    });
   }
 
   // ─── Import / Export ───
@@ -987,6 +1024,14 @@ export class SettingsPanel {
             <button class="preset" data-preset="sarabun-20">
               <div class="pn">TH Sarabun 20</div>
               <div class="pd">ใหญ่มาก</div>
+            </button>
+            <button class="preset" data-preset="tahoma-14" title="ฟอนต์ระบบ Windows สำรองไว้ใช้ถ้า Sarabun เพี้ยน">
+              <div class="pn">Tahoma 14</div>
+              <div class="pd">Windows ดั้งเดิม — สำรอง</div>
+            </button>
+            <button class="preset" data-preset="vscode-default" title="ล้างการจัดหน้ากระดาษทุกอย่าง — ใช้เมื่อทุกอย่างเพี้ยน">
+              <div class="pn">ค่า VS Code ปกติ</div>
+              <div class="pd">กลับสู่ดั้งเดิม (ล้างทุกอย่าง)</div>
             </button>
           </div>
         </div>
