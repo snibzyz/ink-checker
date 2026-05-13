@@ -256,23 +256,92 @@ function getConfigTarget(cfg: FormattingConfig): vscode.ConfigurationTarget {
 // Apply settings to VS Code (language-scoped)
 // ----------------------------------------------------------------------
 
+function deepEqualJson(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a == null || b == null) return false;
+  try {
+    return JSON.stringify(a) === JSON.stringify(b);
+  } catch {
+    return false;
+  }
+}
+
+function readCurrentLangValue(
+  languageId: string,
+  key: (typeof EDITOR_KEYS)[number],
+  target: vscode.ConfigurationTarget
+): unknown {
+  const config = vscode.workspace.getConfiguration("editor", { languageId });
+  const inspected = config.inspect(key);
+  if (!inspected) return undefined;
+  switch (target) {
+    case vscode.ConfigurationTarget.Global:
+      return inspected.globalLanguageValue;
+    case vscode.ConfigurationTarget.Workspace:
+      return inspected.workspaceLanguageValue;
+    case vscode.ConfigurationTarget.WorkspaceFolder:
+      return inspected.workspaceFolderLanguageValue;
+  }
+}
+
+// เขียน editor.<key> แบบ idempotent + retry — แก้ race condition เวลา
+// เปิด VS Code หลาย instance พร้อมกัน (ทุก instance activate และ
+// applyFormattingToVSCode ในเวลาเดียวกัน แย่งเขียน settings.json
+// → ตัวหนึ่งสำเร็จ ตัวอื่น throw "Unable to write into user settings")
+//
+// กลยุทธ์:
+//   1) อ่านค่าปัจจุบันก่อน — ถ้าตรงกับที่จะเขียนอยู่แล้ว → skip (ไม่ชนเลย)
+//   2) ถ้าเขียนแล้ว throw → backoff สั้น ๆ + retry สูงสุด 3 ครั้ง
+//   3) ก่อน retry แต่ละครั้ง อ่านใหม่ — instance อื่นอาจเขียนค่าที่
+//      ตรงกับของเราไปแล้ว → ไม่ต้องเขียนซ้ำ
+async function writeEditorSettingIdempotent(
+  languageId: string,
+  key: (typeof EDITOR_KEYS)[number],
+  desired: unknown,
+  target: vscode.ConfigurationTarget
+): Promise<{ skipped: boolean; error?: unknown }> {
+  const ATTEMPTS = 3;
+  let lastErr: unknown;
+  for (let i = 0; i < ATTEMPTS; i++) {
+    const current = readCurrentLangValue(languageId, key, target);
+    // desired === undefined หมายถึง "ลบ key นี้"
+    if (desired === undefined) {
+      if (current === undefined) return { skipped: true };
+    } else if (current !== undefined && deepEqualJson(current, desired)) {
+      return { skipped: true };
+    }
+    try {
+      const config = vscode.workspace.getConfiguration("editor", { languageId });
+      await config.update(key, desired, target, /* overrideInLanguage */ true);
+      return { skipped: false };
+    } catch (err) {
+      lastErr = err;
+      if (i < ATTEMPTS - 1) {
+        const delay = 50 + i * 100 + Math.floor(Math.random() * 50);
+        await new Promise((r) => setTimeout(r, delay));
+      }
+    }
+  }
+  return { skipped: false, error: lastErr };
+}
+
 async function writeEditorSetting(
   languageId: string,
   key: (typeof EDITOR_KEYS)[number],
   value: unknown,
   target: vscode.ConfigurationTarget
-) {
-  const config = vscode.workspace.getConfiguration("editor", { languageId });
-  await config.update(key, value, target, /* overrideInLanguage */ true);
+): Promise<unknown | undefined> {
+  const r = await writeEditorSettingIdempotent(languageId, key, value, target);
+  return r.error;
 }
 
 async function clearEditorSetting(
   languageId: string,
   key: (typeof EDITOR_KEYS)[number],
   target: vscode.ConfigurationTarget
-) {
-  const config = vscode.workspace.getConfiguration("editor", { languageId });
-  await config.update(key, undefined, target, /* overrideInLanguage */ true);
+): Promise<unknown | undefined> {
+  const r = await writeEditorSettingIdempotent(languageId, key, undefined, target);
+  return r.error;
 }
 
 const ALL_FORMATTABLE_LANGS = ["plaintext", "markdown"];
@@ -299,25 +368,33 @@ async function captureSnapshotIfNeeded(): Promise<void> {
   await extensionContext.globalState.update(SNAPSHOT_KEY, snap);
 }
 
-async function restoreSnapshotIfExists(): Promise<void> {
+async function restoreSnapshotIfExists(): Promise<unknown | undefined> {
   if (!extensionContext) return;
   const snap = extensionContext.globalState.get<Snapshot>(SNAPSHOT_KEY);
+  let firstErr: unknown;
 
   // วนทุก lang/key ที่ extension อาจเคยเขียนเสมอ แม้ snapshot ไม่มี/ไม่ครบ —
   // มิฉะนั้น toggle off จะไม่เคลียร์ฟอนต์ที่เราเซ็ตไว้
   for (const lang of ALL_FORMATTABLE_LANGS) {
-    const config = vscode.workspace.getConfiguration("editor", { languageId: lang });
     const ls = snap?.[lang];
     for (const k of EDITOR_KEYS) {
       const v = ls?.[k];
-      await config.update(
+      const desired = v === null || v === undefined ? undefined : v;
+      const r1 = await writeEditorSettingIdempotent(
+        lang,
         k,
-        v === null || v === undefined ? undefined : v,
-        vscode.ConfigurationTarget.Global,
-        true
+        desired,
+        vscode.ConfigurationTarget.Global
       );
+      if (r1.error) firstErr ??= r1.error;
       if (vscode.workspace.workspaceFolders?.length) {
-        await config.update(k, undefined, vscode.ConfigurationTarget.Workspace, true);
+        const r2 = await writeEditorSettingIdempotent(
+          lang,
+          k,
+          undefined,
+          vscode.ConfigurationTarget.Workspace
+        );
+        if (r2.error) firstErr ??= r2.error;
       }
     }
     // หลังเคลียร์ครบ — ลบ container ถ้าว่าง (กัน "[lang]": {} ค้างใน settings.json)
@@ -327,9 +404,10 @@ async function restoreSnapshotIfExists(): Promise<void> {
     }
   }
 
-  if (snap) {
+  if (snap && !firstErr) {
     await extensionContext.globalState.update(SNAPSHOT_KEY, undefined);
   }
+  return firstErr;
 }
 
 export async function applyFormattingToVSCode(): Promise<void> {
@@ -337,53 +415,70 @@ export async function applyFormattingToVSCode(): Promise<void> {
   const target = getConfigTarget(cfg);
   const enabledLangs = new Set(getTargetLanguages(cfg));
 
+  let firstErr: unknown;
+
   if (cfg.enabled) {
     // ถ่าย snapshot ค่าเดิมก่อน — ทำครั้งเดียว ตอนเปิดใช้งานครั้งแรก
-    await captureSnapshotIfNeeded();
+    try {
+      await captureSnapshotIfNeeded();
+    } catch (err) {
+      firstErr ??= err;
+    }
 
+    // เขียน per-key แบบ idempotent — error ใน key เดียวไม่ทำให้ key อื่นค้าง
+    // (สำคัญสำหรับเคส multi-instance race ที่ก่อนหน้านี้ทำให้ [markdown]
+    // ค้างค่าเก่าเพราะ [plaintext] เขียนสำเร็จแล้ว throw → loop หยุด)
     for (const lang of ALL_FORMATTABLE_LANGS) {
       if (enabledLangs.has(lang)) {
-        await writeEditorSetting(lang, "fontFamily", cfg.fontFamily, target);
-        await writeEditorSetting(lang, "fontSize", cfg.fontSize, target);
-        await writeEditorSetting(lang, "lineHeight", cfg.lineHeight, target);
-        // ใช้ "bounded" เพื่อ wrap ที่ min(viewport, wordWrapColumn) — สั้นพอดีอ่าน
-        await writeEditorSetting(
-          lang,
-          "wordWrap",
-          cfg.wordWrap ? "bounded" : "off",
-          target
-        );
-        await writeEditorSetting(lang, "wordWrapColumn", cfg.wordWrapColumn, target);
-        // "advanced" ใช้ Unicode line-break rules ของ browser engine — เคารพ
-        // grapheme cluster ภาษาไทย ไม่ตัดกลางสระ/วรรณยุกต์ (เช่น "ครั้ง" ไม่ถูกแยก)
-        await writeEditorSetting(lang, "wrappingStrategy", "advanced", target);
+        const writes: Array<[(typeof EDITOR_KEYS)[number], unknown]> = [
+          ["fontFamily", cfg.fontFamily],
+          ["fontSize", cfg.fontSize],
+          ["lineHeight", cfg.lineHeight],
+          // ใช้ "bounded" เพื่อ wrap ที่ min(viewport, wordWrapColumn) — สั้นพอดีอ่าน
+          ["wordWrap", cfg.wordWrap ? "bounded" : "off"],
+          ["wordWrapColumn", cfg.wordWrapColumn],
+          // "advanced" ใช้ Unicode line-break rules ของ browser engine — เคารพ
+          // grapheme cluster ภาษาไทย ไม่ตัดกลางสระ/วรรณยุกต์
+          ["wrappingStrategy", "advanced"],
+        ];
+        for (const [k, v] of writes) {
+          const r = await writeEditorSettingIdempotent(lang, k, v, target);
+          if (r.error) firstErr ??= r.error;
+        }
       } else {
         // ภาษานี้ถูกเอาออกจาก applyTo — คืนค่าเดิม (ถ้ามี snapshot)
-        await restoreLangFromSnapshot(lang);
+        const err = await restoreLangFromSnapshot(lang);
+        if (err) firstErr ??= err;
       }
     }
   } else {
     // ปิด formatting — คืนค่าเดิมทุกภาษา แล้วลบ snapshot
-    await restoreSnapshotIfExists();
+    const err = await restoreSnapshotIfExists();
+    if (err) firstErr ??= err;
   }
+
+  if (firstErr) throw firstErr;
 }
 
-async function restoreLangFromSnapshot(lang: string): Promise<void> {
+async function restoreLangFromSnapshot(lang: string): Promise<unknown | undefined> {
   if (!extensionContext) return;
   const snap = extensionContext.globalState.get<Snapshot>(SNAPSHOT_KEY);
   const ls = snap?.[lang];
-  const config = vscode.workspace.getConfiguration("editor", { languageId: lang });
+  let firstErr: unknown;
   for (const k of EDITOR_KEYS) {
     const v = ls?.[k];
-    await config.update(
+    const desired = v === null || v === undefined ? undefined : v;
+    const r = await writeEditorSettingIdempotent(
+      lang,
       k,
-      v === null || v === undefined ? undefined : v,
-      vscode.ConfigurationTarget.Global,
-      true
+      desired,
+      vscode.ConfigurationTarget.Global
     );
+    if (r.error) firstErr ??= r.error;
   }
   // ถ้าใน "[lang]" ไม่เหลือ key ของ user เอง → ลบ container ทิ้ง
   await clearLanguageContainerIfEmpty(lang, vscode.ConfigurationTarget.Global);
+  return firstErr;
 }
 
 // ----------------------------------------------------------------------

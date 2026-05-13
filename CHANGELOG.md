@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.0.7
+
+### Fixed
+- **"เขียนการตั้งค่าไม่ได้" loop when multiple VS Code instances are open at the same time.** Every instance ran `applyFormattingToVSCode()` on activate and on every `inkChecker.formatting.*` change, all writing to the same `editor.fontFamily` / `fontSize` / etc. keys inside `"[plaintext]"` and `"[markdown]"`. VS Code serialises those writes through a single `settings.json`, so two instances racing each other made one win and the other throw `Unable to write into user settings`. Before v1.0.7 a single throw aborted the rest of the loop, leaving `"[plaintext]"` updated to the new preset and `"[markdown]"` stuck on the old one — the exact mismatch users were reporting (e.g. plaintext at Tahoma 16 while markdown stayed at TH Sarabun 14). The throw also triggered the settings-write-error warning, and the auto-repair button was useless because the file itself was a valid JSONC — its regex only matched the specific orphan-comma corruption pattern from v1.0.0–v1.0.5.
+- **New write strategy in `formatting.ts`:** every editor key now goes through `writeEditorSettingIdempotent()`, which (1) reads the current value at the target scope first and `skip`s the write if it already equals the desired value, (2) retries up to 3 times with backoff (50ms / 150ms / 300ms) on `Unable to write` errors, re-reading between attempts so a sibling instance's successful write is detected and the retry becomes a no-op. The skip-if-match logic also prevents instances from fighting each other on activate: whichever one writes first wins; the others see matching values and exit silently.
+- **Per-key error isolation in `applyFormattingToVSCode()`:** errors are now collected per key and only the first one is thrown at the end of the loop, so a transient failure on (say) `[plaintext].editor.fontFamily` no longer prevents `[markdown]` from being updated. Same change applied to `restoreSnapshotIfExists()` and `restoreLangFromSnapshot()`.
+- **Auto-repair now recognises the "file is fine, you just hit a race" case.** New `looksLikeValidJsonc()` check in `settingsRepair.ts`: if the orphan-comma regex finds no matches but `settings.json` parses as valid JSONC (with trailing commas + comments stripped), `attemptRepair()` returns the new `file-ok-likely-race` kind instead of the misleading "ไม่พบ pattern ที่รู้จัก" message, and the warning flow shows a modal explaining the multi-instance race and offering Reload Window as the actual fix.
+
 ## 1.0.6
 
 ### Fixed

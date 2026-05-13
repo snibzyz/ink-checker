@@ -25,7 +25,31 @@ export type RepairResult =
   | { kind: "ok"; path: string; backupPath: string; matches: number }
   | { kind: "no-file"; tried: string[] }
   | { kind: "not-applicable"; path: string; reason: string }
+  | { kind: "file-ok-likely-race"; path: string }
   | { kind: "error"; path?: string; message: string };
+
+/**
+ * เช็คว่า settings.json parse ได้เป็น JSONC ที่ valid หรือไม่ — ใช้ตัดสินใจ
+ * ว่าบัค "เขียนการตั้งค่าไม่ได้" เกิดจาก syntax error จริง หรือเป็น race
+ * ระหว่าง VS Code หลาย instance ที่เขียนพร้อมกัน
+ *
+ * VS Code's settings.json รองรับ trailing commas + // comments → ใช้ regex
+ * ลบทั้ง 2 ก่อน parse ด้วย JSON.parse มาตรฐาน
+ */
+export function looksLikeValidJsonc(content: string): boolean {
+  try {
+    // ลบ /* block comments */
+    let stripped = content.replace(/\/\*[\s\S]*?\*\//g, "");
+    // ลบ // line comments
+    stripped = stripped.replace(/(^|[^\\])\/\/[^\n]*/g, "$1");
+    // ลบ trailing commas ก่อน } หรือ ]
+    stripped = stripped.replace(/,(\s*[}\]])/g, "$1");
+    JSON.parse(stripped);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 // ---------- path resolution -------------------------------------------
 
@@ -204,6 +228,12 @@ export async function attemptRepair(): Promise<RepairResult> {
 
   const { matches } = detectOrphanComma(content);
   if (matches.length === 0) {
+    // ไม่เจอ pattern ที่รู้จัก — เช็คก่อนว่าไฟล์ valid JSONC ไหม
+    // ถ้า valid → ปัญหาน่าจะมาจาก race condition (เปิด VS Code หลาย instance
+    // พร้อมกัน แล้วแย่งเขียน settings.json) → แนะนำ Reload Window
+    if (looksLikeValidJsonc(content)) {
+      return { kind: "file-ok-likely-race", path: settingsPath };
+    }
     return {
       kind: "not-applicable",
       path: settingsPath,

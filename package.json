@@ -2,7 +2,7 @@
   "name": "kunpeng-checker",
   "displayName": "INKCHECKER",
   "description": "Word and writing consistency checker for Thai text",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "publisher": "kunpeng-dev",
   "icon": "inkrealm-logo.png",
   "repository": {

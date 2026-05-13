@@ -663,6 +663,22 @@ async function runRepairFlow(): Promise<void> {
       }
       break;
     }
+    case "file-ok-likely-race": {
+      // settings.json valid อยู่ → ไม่มีอะไรให้ซ่อม ปัญหาน่าจะมาจาก
+      // race condition ระหว่าง VS Code หลาย instance ที่เขียนพร้อมกัน
+      // v1.0.7 ขึ้นไปแก้ root cause ที่ฝั่ง extension แล้ว (idempotent
+      // write + retry) → Reload Window น่าจะหายเอง
+      const RELOAD = "Reload Window";
+      const pick = await vscode.window.showInformationMessage(
+        "settings.json ของคุณปกติดี — ไม่พบ syntax error ที่ต้องซ่อม\n\nปัญหาน่าจะเกิดจากเปิด VS Code หลาย instance พร้อมกัน แล้วชนกันเขียนค่า กด Reload Window น่าจะหายเอง",
+        { modal: true },
+        RELOAD
+      );
+      if (pick === RELOAD) {
+        void vscode.commands.executeCommand("workbench.action.reloadWindow");
+      }
+      break;
+    }
     case "no-file": {
       vscode.window.showErrorMessage(
         `INK CHECKER: หา settings.json ไม่เจอ (ลอง: ${result.tried.length} path)`
