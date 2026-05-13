@@ -1,5 +1,10 @@
 import * as vscode from "vscode";
-import { getFormattingConfig, resetFormatting } from "./formatting";
+import {
+  applyFormattingToVSCode,
+  getFormattingConfig,
+  resetFormatting,
+  updateIndentDecorationsAll,
+} from "./formatting";
 import { notifySettingsWriteError } from "./extension";
 
 const CONFIG_SECTION = "inkChecker";
@@ -60,6 +65,9 @@ export class SettingsPanel {
             break;
           case "copySettings":
             await this._copySettings();
+            break;
+          case "convertFiles":
+            await vscode.commands.executeCommand("ink-checker.convertFiles");
             break;
         }
       },
@@ -166,6 +174,11 @@ export class SettingsPanel {
       for (const [k, v] of Object.entries(values)) {
         await c.update(`formatting.${k}`, v, vscode.ConfigurationTarget.Global);
       }
+      // เรียก apply ตรง ๆ หลังเขียนครบ — ไม่พึ่ง onDidChangeConfiguration
+      // listener อย่างเดียว (กันกรณี listener ถูก suppress หรือ race จน
+      // skip ก่อนเขียน editor.* ลงจริง)
+      await applyFormattingToVSCode();
+      updateIndentDecorationsAll();
     });
   }
 
@@ -218,6 +231,10 @@ export class SettingsPanel {
         await c.update(`formatting.${k}`, val, vscode.ConfigurationTarget.Global);
       }
       await c.update("formatting.enabled", true, vscode.ConfigurationTarget.Global);
+      // เขียน editor.* ทันทีหลัง config ครบ — กัน listener race ที่
+      // refresh() คอนเคอร์เรนต์หลายตัวอ่านค่าระหว่างยังเขียนไม่ครบ
+      await applyFormattingToVSCode();
+      updateIndentDecorationsAll();
     });
   }
 
@@ -1209,6 +1226,17 @@ export class SettingsPanel {
       </div>
 
       <div class="card">
+        <div class="card-title"><svg class="icon"><use href="#i-swap"/></svg> แปลงนามสกุลไฟล์ .txt ↔ .md</div>
+        <div class="row">
+          <div class="label-group">
+            <div class="label">เปลี่ยนนามสกุล .txt เป็น .md (หรือกลับกัน)</div>
+            <div class="hint">เลือกทั้งโฟลเดอร์งาน หรือเลือกไฟล์เอง — สำรองสำหรับเคสที่ฟอนต์ไม่ apply กับ .txt</div>
+          </div>
+          <button class="btn" id="convertFilesBtn">แปลงไฟล์...</button>
+        </div>
+      </div>
+
+      <div class="card">
         <div class="card-title"><svg class="icon"><use href="#i-save"/></svg> นำเข้า / ส่งออก ตั้งค่า</div>
         <div class="row">
           <div class="label-group">
@@ -1525,6 +1553,9 @@ export class SettingsPanel {
   });
   $("copyBtn").addEventListener("click", () => {
     vscode.postMessage({ command: "copySettings" });
+  });
+  $("convertFilesBtn").addEventListener("click", () => {
+    vscode.postMessage({ command: "convertFiles" });
   });
 
   // ─── messages from extension ───

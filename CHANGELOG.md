@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.0.8
+
+### Fixed
+- **Page formatting now applies to `.txt` files even when VS Code detects them as a non-`plaintext` language.** Root cause: the apply path only wrote `[plaintext]` / `[markdown]` overrides, but some users have content-detection extensions or `files.associations` mappings that assign `.txt` to a different language ID (e.g. `log`, `ascii`). The `[plaintext]` override is then a no-op for those files — `.md` worked because nothing was hijacking `markdown`, but `.txt` silently did nothing. v1.0.8 adds `detectDynamicLangs()` which scans open documents at apply time, finds `.txt`/`.md` files whose `languageId` is not the canonical one, and also writes `editor.fontFamily` / `fontSize` / `lineHeight` / `wordWrap` / `wordWrapColumn` / `wrappingStrategy` into `[<actual-langId>]`. The detected langs are persisted in `globalState` under `inkChecker.formatting.dynamicLangs.v1` so they can be cleaned up correctly on toggle-off in a later session.
+- **Indent decoration on `.txt` had the same root cause.** `isFormattableLanguage()` only matched `plaintext` / `markdown` literally, so files with a non-canonical langId were rejected and never received the paragraph-indent overlay. Renamed to `isFormattableDoc()` and added a file-extension fallback — `.txt` / `.md` / `.markdown` paths get formatted regardless of how the language was detected.
+- **`snapshotLangIfNeeded()` for dynamic langs:** before writing to a newly-discovered language scope, the original values at that scope are captured into the existing snapshot record, so toggle-off restores them instead of nuking user-managed keys.
+- **Concurrent `applyFormattingToVSCode()` calls now coalesce.** Writing N config keys (e.g. applying a preset writes 7) used to fire N `onDidChangeConfiguration` events, each running `void refresh()` → N concurrent apply rounds racing on `settings.json`. With v1.0.7's idempotent-skip logic, late rounds saw partial writes from earlier rounds and exited as no-ops — making toggles and preset clicks visibly do nothing. v1.0.8 wraps `applyFormattingToVSCode()` in a single-flight gate: if a round is in flight, additional callers set a `pending` flag and `await` the same promise; the inner loop re-runs once if `pending` was set during the previous iteration, so all queued requests are serviced by exactly one tail round.
+- **Direct apply from settings panel.** `_updateFormatting()` and `_applyPreset()` in `settingsPanel.ts` now `await applyFormattingToVSCode()` + `updateIndentDecorationsAll()` after the config writes complete, instead of relying solely on the `onDidChangeConfiguration` → `refresh()` chain. The listener still fires for changes coming from outside the panel (e.g. user editing `settings.json` directly), but the panel's own writes no longer depend on it.
+- **`onDidOpenTextDocument` listener** triggers a refresh when a `.txt`/`.md` opens with a non-canonical language ID that hasn't been recorded yet — covers the case where formatting is enabled but the user opens the problem file later.
+- **Removed `console.log("[Kunpeng] Creating decorations with colors:", ...)`** which fired on every `inkChecker.*` config change (including formatting toggles) and spammed the extension host log with 20+ identical lines per preset click.
+
+### Added
+- **Convert `.txt` ↔ `.md` files** as a workaround for environments where the language-detection fix above can't reach (e.g. files opened outside the workspace). New module `src/fileConvert.ts` exposes batch rename:
+  - **Explorer context menu** on `.txt` → "INK CHECKER: แปลงเป็น .md"; on `.md` → "แปลงเป็น .txt". Multi-select supported.
+  - **Command palette**: `INK CHECKER: แปลงนามสกุล .txt ↔ .md` opens a QuickPick with four modes (`.txt`→`.md` workspace-wide, `.txt`→`.md` selected files, `.md`→`.txt` workspace-wide, `.md`→`.txt` selected files).
+  - **Settings panel → "ขั้นสูง" tab** has a "แปลงไฟล์..." button on the new card at the top.
+  - The converter saves dirty buffers first, asks for confirmation on batch operations, refuses to overwrite an existing target, and reports per-file success/skip/fail in a single notification. Uses `vscode.workspace.fs.rename()` so open editors update automatically.
+
 ## 1.0.7
 
 ### Fixed

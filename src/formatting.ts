@@ -119,6 +119,13 @@ let extensionContext: vscode.ExtensionContext | undefined;
 
 const SNAPSHOT_KEY = "inkChecker.formatting.snapshot.v1";
 
+// เก็บ languageId เพิ่มเติมที่เคยเขียน editor.* (นอกเหนือจาก plaintext/markdown)
+// — สำหรับเคสที่ผู้ใช้เปิด .txt แต่ VS Code detect เป็น language อื่น
+// (เช่น "log", "ascii", หรือถูก extension ยึดไป) → เราตามไปเขียน [<lang>]
+// ด้วย เพื่อให้ฟอนต์ apply ได้จริง บัญชีนี้ persistent ใน globalState เพื่อ
+// คืนค่าได้ครบเวลา disable แม้ session ถัดไป
+const DYNAMIC_LANGS_KEY = "inkChecker.formatting.dynamicLangs.v1";
+
 // ----------------------------------------------------------------------
 // Migration — versioned, run-once. ทุก version bump ที่กระทบ editor.* settings
 // ต้องเพิ่ม migration step ใหม่ที่นี่ + bump CURRENT_MIGRATION_VERSION
@@ -346,6 +353,80 @@ async function clearEditorSetting(
 
 const ALL_FORMATTABLE_LANGS = ["plaintext", "markdown"];
 
+// สแกน open documents เพื่อหา languageId จริงของไฟล์ .txt และ .md ที่
+// อาจไม่ใช่ "plaintext"/"markdown" — เคสที่พบ: file ถูก auto-detect เป็น
+// language อื่น หรือมี extension/files.associations แมพไป รากของบั๊กที่
+// ผู้ใช้รายงาน ".md ทำงาน .txt ไม่ทำงาน" คือ .txt มี langId อื่นนั่นเอง
+function detectDynamicLangs(cfg: FormattingConfig): Set<string> {
+  const langs = new Set<string>();
+  for (const doc of vscode.workspace.textDocuments) {
+    const p = doc.uri.fsPath.toLowerCase();
+    const isTxt = p.endsWith(".txt");
+    const isMd = p.endsWith(".md") || p.endsWith(".markdown");
+    if (isTxt && cfg.applyToPlaintext && doc.languageId !== "plaintext") {
+      langs.add(doc.languageId);
+    }
+    if (isMd && cfg.applyToMarkdown && doc.languageId !== "markdown") {
+      langs.add(doc.languageId);
+    }
+  }
+  return langs;
+}
+
+function getTrackedDynamicLangs(): string[] {
+  if (!extensionContext) return [];
+  return extensionContext.globalState.get<string[]>(DYNAMIC_LANGS_KEY, []) ?? [];
+}
+
+async function setTrackedDynamicLangs(langs: string[]): Promise<void> {
+  if (!extensionContext) return;
+  await extensionContext.globalState.update(DYNAMIC_LANGS_KEY, langs);
+}
+
+// ก่อนเขียน dynamic lang ครั้งแรก → snapshot ค่าเดิมของ lang นั้นไว้ใน
+// SNAPSHOT_KEY (เก็บใน Record เดียวกับ plaintext/markdown) เพื่อให้ตอน
+// disable / cleanup คืนค่าเดิมได้ ไม่ใช่ลบทิ้งล้วน ๆ จนค่าของผู้ใช้หาย
+async function snapshotLangIfNeeded(lang: string): Promise<void> {
+  if (!extensionContext) return;
+  const snap = extensionContext.globalState.get<Snapshot>(SNAPSHOT_KEY) ?? {};
+  if (snap[lang]) return; // เคย snapshot แล้ว
+  const config = vscode.workspace.getConfiguration("editor", { languageId: lang });
+  const ls: SnapshotLang = {};
+  for (const k of EDITOR_KEYS) {
+    const inspect = config.inspect(k);
+    ls[k] = inspect?.globalLanguageValue ?? null;
+  }
+  snap[lang] = ls;
+  await extensionContext.globalState.update(SNAPSHOT_KEY, snap);
+}
+
+// คืนค่าเดิมของ lang ที่เคย snapshot ไว้ (สำหรับ dynamic langs)
+// — ถ้าค่าเดิมเป็น null/undefined ก็เขียน undefined (เคลียร์)
+async function restoreLangFromAnySnapshot(lang: string): Promise<unknown | undefined> {
+  if (!extensionContext) return;
+  const snap = extensionContext.globalState.get<Snapshot>(SNAPSHOT_KEY);
+  const ls = snap?.[lang];
+  let firstErr: unknown;
+  for (const k of EDITOR_KEYS) {
+    const v = ls?.[k];
+    const desired = v === null || v === undefined ? undefined : v;
+    const r = await writeEditorSettingIdempotent(
+      lang,
+      k,
+      desired,
+      vscode.ConfigurationTarget.Global
+    );
+    if (r.error) firstErr ??= r.error;
+  }
+  await clearLanguageContainerIfEmpty(lang, vscode.ConfigurationTarget.Global);
+  // ลบ entry ของ lang นี้ออกจาก snapshot (จะ snapshot ใหม่ถ้าเปิดใช้รอบหน้า)
+  if (snap?.[lang]) {
+    delete snap[lang];
+    await extensionContext.globalState.update(SNAPSHOT_KEY, snap);
+  }
+  return firstErr;
+}
+
 // ----------------------------------------------------------------------
 // Snapshot / restore — กันค่าตั้งค่าเดิมของผู้ใช้หาย
 // ----------------------------------------------------------------------
@@ -410,7 +491,34 @@ async function restoreSnapshotIfExists(): Promise<unknown | undefined> {
   return firstErr;
 }
 
+// Single-flight + coalesce — กัน applyFormattingToVSCode ถูกเรียกซ้อนกัน
+// (เช่น _updateFormatting เขียน 7 คีย์ → 7 config events → 7 refresh()
+// ทำงานพร้อมกัน → idempotent read เห็นค่ากันเอง early-skip → toggle/font
+// "เหมือนไม่ทำอะไร") กลยุทธ์: ถ้ามีรอบหนึ่งกำลังทำอยู่ → จองรอบถัดไปแบบ
+// pending แค่ตัวเดียว ทุก call ที่เข้ามาระหว่างนั้น share รอบเดียวกัน
+let applyInflight: Promise<void> | undefined;
+let applyPending = false;
+
 export async function applyFormattingToVSCode(): Promise<void> {
+  if (applyInflight) {
+    applyPending = true;
+    await applyInflight;
+    if (!applyPending) return;
+  }
+  applyInflight = (async () => {
+    do {
+      applyPending = false;
+      await doApplyFormattingOnce();
+    } while (applyPending);
+  })();
+  try {
+    await applyInflight;
+  } finally {
+    applyInflight = undefined;
+  }
+}
+
+async function doApplyFormattingOnce(): Promise<void> {
   const cfg = getFormattingConfig();
   const target = getConfigTarget(cfg);
   const enabledLangs = new Set(getTargetLanguages(cfg));
@@ -425,22 +533,23 @@ export async function applyFormattingToVSCode(): Promise<void> {
       firstErr ??= err;
     }
 
+    const writes: Array<[(typeof EDITOR_KEYS)[number], unknown]> = [
+      ["fontFamily", cfg.fontFamily],
+      ["fontSize", cfg.fontSize],
+      ["lineHeight", cfg.lineHeight],
+      // ใช้ "bounded" เพื่อ wrap ที่ min(viewport, wordWrapColumn) — สั้นพอดีอ่าน
+      ["wordWrap", cfg.wordWrap ? "bounded" : "off"],
+      ["wordWrapColumn", cfg.wordWrapColumn],
+      // "advanced" ใช้ Unicode line-break rules ของ browser engine — เคารพ
+      // grapheme cluster ภาษาไทย ไม่ตัดกลางสระ/วรรณยุกต์
+      ["wrappingStrategy", "advanced"],
+    ];
+
     // เขียน per-key แบบ idempotent — error ใน key เดียวไม่ทำให้ key อื่นค้าง
     // (สำคัญสำหรับเคส multi-instance race ที่ก่อนหน้านี้ทำให้ [markdown]
     // ค้างค่าเก่าเพราะ [plaintext] เขียนสำเร็จแล้ว throw → loop หยุด)
     for (const lang of ALL_FORMATTABLE_LANGS) {
       if (enabledLangs.has(lang)) {
-        const writes: Array<[(typeof EDITOR_KEYS)[number], unknown]> = [
-          ["fontFamily", cfg.fontFamily],
-          ["fontSize", cfg.fontSize],
-          ["lineHeight", cfg.lineHeight],
-          // ใช้ "bounded" เพื่อ wrap ที่ min(viewport, wordWrapColumn) — สั้นพอดีอ่าน
-          ["wordWrap", cfg.wordWrap ? "bounded" : "off"],
-          ["wordWrapColumn", cfg.wordWrapColumn],
-          // "advanced" ใช้ Unicode line-break rules ของ browser engine — เคารพ
-          // grapheme cluster ภาษาไทย ไม่ตัดกลางสระ/วรรณยุกต์
-          ["wrappingStrategy", "advanced"],
-        ];
         for (const [k, v] of writes) {
           const r = await writeEditorSettingIdempotent(lang, k, v, target);
           if (r.error) firstErr ??= r.error;
@@ -451,10 +560,47 @@ export async function applyFormattingToVSCode(): Promise<void> {
         if (err) firstErr ??= err;
       }
     }
+
+    // Dynamic langs — สแกน open documents เพื่อหา .txt/.md ที่ langId
+    // ไม่ใช่ "plaintext"/"markdown" (เช่น auto-detect เป็น "log" หรืออื่น ๆ)
+    // → snapshot ค่าเดิมก่อน แล้วเขียน [<langId>] ทับ
+    const dynamicLangs = detectDynamicLangs(cfg);
+    const prevDynamic = new Set(getTrackedDynamicLangs());
+
+    for (const lang of dynamicLangs) {
+      try {
+        await snapshotLangIfNeeded(lang);
+      } catch (err) {
+        firstErr ??= err;
+      }
+      for (const [k, v] of writes) {
+        const r = await writeEditorSettingIdempotent(lang, k, v, target);
+        if (r.error) firstErr ??= r.error;
+      }
+    }
+
+    // ลบ dynamic lang เก่าที่ไม่ได้อยู่ในเซ็ตปัจจุบันแล้ว (ไฟล์ถูกปิด /
+    // langId เปลี่ยน) — คืนค่าจาก snapshot
+    for (const oldLang of prevDynamic) {
+      if (dynamicLangs.has(oldLang)) continue;
+      const err = await restoreLangFromAnySnapshot(oldLang);
+      if (err) firstErr ??= err;
+    }
+
+    await setTrackedDynamicLangs(Array.from(dynamicLangs));
   } else {
     // ปิด formatting — คืนค่าเดิมทุกภาษา แล้วลบ snapshot
     const err = await restoreSnapshotIfExists();
     if (err) firstErr ??= err;
+
+    // เคลียร์ dynamic langs ที่เคยเขียนทั้งหมด — คืนค่าจาก snapshot
+    // (snapshotLangIfNeeded เก็บค่าเดิมไว้ก่อนเขียน → เคารพ user setting)
+    const tracked = getTrackedDynamicLangs();
+    for (const lang of tracked) {
+      const err2 = await restoreLangFromAnySnapshot(lang);
+      if (err2) firstErr ??= err2;
+    }
+    if (!firstErr) await setTrackedDynamicLangs([]);
   }
 
   if (firstErr) throw firstErr;
@@ -510,16 +656,24 @@ function ensureIndentDecoration(indentPx: number): vscode.TextEditorDecorationTy
   return indentDecorationType;
 }
 
-function isFormattableLanguage(cfg: FormattingConfig, languageId: string): boolean {
-  if (languageId === "plaintext") return cfg.applyToPlaintext;
-  if (languageId === "markdown") return cfg.applyToMarkdown;
+// เช็คว่า document ควรถูกจัดหน้ากระดาษหรือไม่ — อ้างอิงจาก langId เป็นหลัก
+// แต่ fallback ไปดูนามสกุลไฟล์ ถ้า langId ไม่ใช่ plaintext/markdown (เช่นถูก
+// auto-detect เป็น "log") เพื่อให้ indent + การจัดหน้าอื่น ๆ ทำงานบน .txt
+// ที่ langId เพี้ยน
+function isFormattableDoc(cfg: FormattingConfig, doc: vscode.TextDocument): boolean {
+  const langId = doc.languageId;
+  if (langId === "plaintext") return cfg.applyToPlaintext;
+  if (langId === "markdown") return cfg.applyToMarkdown;
+  const p = doc.uri.fsPath.toLowerCase();
+  if (p.endsWith(".txt")) return cfg.applyToPlaintext;
+  if (p.endsWith(".md") || p.endsWith(".markdown")) return cfg.applyToMarkdown;
   return false;
 }
 
 export function updateIndentDecorationsForEditor(editor: vscode.TextEditor | undefined): void {
   if (!editor) return;
   const cfg = getFormattingConfig();
-  const langOk = isFormattableLanguage(cfg, editor.document.languageId);
+  const langOk = isFormattableDoc(cfg, editor.document);
 
   if (!cfg.enabled || !langOk || cfg.paragraphIndent <= 0) {
     if (indentDecorationType) {
@@ -1123,6 +1277,22 @@ export function setupFormatting(context: vscode.ExtensionContext): {
       if (e.affectsConfiguration(`${ROOT}.${FORMATTING_PREFIX}`)) {
         void refresh();
       }
+    }),
+    // เปิดไฟล์ .txt/.md ใหม่ที่ langId อาจไม่ใช่ plaintext/markdown
+    // → refresh เพื่อให้ detectDynamicLangs เก็บ langId ใหม่ + เขียน [<lang>]
+    vscode.workspace.onDidOpenTextDocument((doc) => {
+      const cfg = getFormattingConfig();
+      if (!cfg.enabled) return;
+      const p = doc.uri.fsPath.toLowerCase();
+      const isTxt = p.endsWith(".txt");
+      const isMd = p.endsWith(".md") || p.endsWith(".markdown");
+      if (!isTxt && !isMd) return;
+      const lang = doc.languageId;
+      // standard langs จัดการอยู่แล้ว — ไม่ต้อง refresh
+      if (lang === "plaintext" || lang === "markdown") return;
+      // langId แปลก → ต้อง refresh เพื่อเขียน [<lang>] ใหม่
+      if (getTrackedDynamicLangs().includes(lang)) return; // เขียนไปแล้ว
+      void refresh();
     })
   );
 

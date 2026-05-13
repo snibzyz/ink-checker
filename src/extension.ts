@@ -12,6 +12,7 @@ import {
   runMigrations,
 } from "./formatting";
 import { attemptRepair } from "./settingsRepair";
+import { openConvertMenu, convertFromExplorer } from "./fileConvert";
 
 // ======================================================================
 // ส่วนที่ 1: ตัวแปรสำหรับจัดการ Extension
@@ -445,12 +446,6 @@ function createDecorationTypes() {
     ),
     0.4
   );
-
-  console.log("[Kunpeng] Creating decorations with colors:", {
-    customWordsColor,
-    langNumColor,
-    unbalancedColor,
-  });
 
   if (customWordsDecorationType) {
     customWordsDecorationType.dispose();
@@ -1150,6 +1145,23 @@ export async function activate(context: vscode.ExtensionContext) {
     }
   );
 
+  // คำสั่ง convert .txt ↔ .md — workaround สำหรับเคสที่ .txt ไม่ได้รับ
+  // [plaintext] override (เช่น file association ถูกแมพไปภาษาอื่น)
+  const convertFilesMenuCommand = vscode.commands.registerCommand(
+    "ink-checker.convertFiles",
+    () => openConvertMenu()
+  );
+  const convertToMdCommand = vscode.commands.registerCommand(
+    "ink-checker.convertToMd",
+    (uri: vscode.Uri | undefined, uris: vscode.Uri[] | undefined) =>
+      convertFromExplorer("txt-to-md", uri, uris)
+  );
+  const convertToTxtCommand = vscode.commands.registerCommand(
+    "ink-checker.convertToTxt",
+    (uri: vscode.Uri | undefined, uris: vscode.Uri[] | undefined) =>
+      convertFromExplorer("md-to-txt", uri, uris)
+  );
+
   context.subscriptions.push(
     openSettingsPanelCommand,
     openSettingsTabCommand,
@@ -1161,7 +1173,10 @@ export async function activate(context: vscode.ExtensionContext) {
     openFormattingMenuCommand,
     toggleFormattingCommand,
     applyFormattingPresetCommand,
-    resetFormattingCommand
+    resetFormattingCommand,
+    convertFilesMenuCommand,
+    convertToMdCommand,
+    convertToTxtCommand
   );
 
   // ──────────────────────────────────────────────────────────────────────

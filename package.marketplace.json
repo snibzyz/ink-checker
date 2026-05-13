@@ -2,7 +2,7 @@
   "name": "kunpeng-checker",
   "displayName": "INKCHECKER",
   "description": "Word and writing consistency checker for Thai text",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "publisher": "kunpeng-dev",
   "icon": "inkrealm-logo.png",
   "repository": {
@@ -76,6 +76,21 @@
         "command": "ink-checker.resetFormatting",
         "title": "INK CHECKER: รีเซ็ตการจัดหน้ากระดาษ",
         "icon": "$(discard)"
+      },
+      {
+        "command": "ink-checker.convertFiles",
+        "title": "INK CHECKER: แปลงนามสกุล .txt ↔ .md",
+        "icon": "$(arrow-swap)"
+      },
+      {
+        "command": "ink-checker.convertToMd",
+        "title": "INK CHECKER: แปลงเป็น .md",
+        "icon": "$(arrow-right)"
+      },
+      {
+        "command": "ink-checker.convertToTxt",
+        "title": "INK CHECKER: แปลงเป็น .txt",
+        "icon": "$(arrow-left)"
       }
     ],
     "menus": {
@@ -99,6 +114,18 @@
           "command": "ink-checker.toggleChecker",
           "when": "extension == 'kunpeng-dev.kunpeng-checker' || extension == 'inkrealm.ink-checker'",
           "group": "2_configure@4"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "ink-checker.convertToMd",
+          "when": "resourceExtname == .txt",
+          "group": "7_modification@10"
+        },
+        {
+          "command": "ink-checker.convertToTxt",
+          "when": "resourceExtname == .md",
+          "group": "7_modification@10"
         }
       ]
     },
