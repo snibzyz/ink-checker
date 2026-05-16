@@ -18,8 +18,14 @@ import * as os from "os";
 // **ไม่แตะ key อื่น ๆ ของ user เลย** ถ้าหา pattern ไม่เจอ → return false
 // ให้ผู้ใช้เปิดไฟล์แก้เองแบบเดิม
 
+// orphan-comma pattern เฉพาะใน "[markdown]" / "[plaintext]" / "[txt]" — รูปแบบที่
+// VS Code's JSON modifier ทิ้งค้างไว้เมื่อหลาย instance เขียน editor.* key พร้อมกัน
 const ORPHAN_COMMA_RE =
-  /"(\[(?:markdown|plaintext)\])"\s*:\s*\{\s*(?:,\s*)+\}/g;
+  /"(\[(?:markdown|plaintext|txt|markdown_\w+|plain_?text_\w+)\])"\s*:\s*\{\s*(?:,\s*)+\}/g;
+
+// orphan comma แบบทั่วไป — `{ , ... }` ที่ขึ้นต้นด้วยลูกน้ำ (ไม่ใช่ trailing)
+// ใช้ตรวจใน looksLikeValidJsonc เพื่อไม่ให้ false positive ว่าไฟล์ valid
+const LEADING_OR_DOUBLE_COMMA_RE = /[\{\[]\s*,|,\s*,/;
 
 export type RepairResult =
   | { kind: "ok"; path: string; backupPath: string; matches: number }
@@ -27,6 +33,14 @@ export type RepairResult =
   | { kind: "not-applicable"; path: string; reason: string }
   | { kind: "file-ok-likely-race"; path: string }
   | { kind: "error"; path?: string; message: string };
+
+export type SilentRepairResult = {
+  fixed: number;          // จำนวน pattern ที่ซ่อม
+  path?: string;          // path ของ settings.json ที่ซ่อม
+  backupPath?: string;    // path สำรองที่สร้าง (เมื่อ fixed > 0)
+  skipped?: boolean;      // true = ไม่เจอไฟล์ / ไม่มี pattern
+  error?: string;         // ถ้ามี error
+};
 
 /**
  * เช็คว่า settings.json parse ได้เป็น JSONC ที่ valid หรือไม่ — ใช้ตัดสินใจ
@@ -37,12 +51,16 @@ export type RepairResult =
  * ลบทั้ง 2 ก่อน parse ด้วย JSON.parse มาตรฐาน
  */
 export function looksLikeValidJsonc(content: string): boolean {
+  // orphan comma `{ ,` หรือ `[ ,` หรือ `, ,` ไม่ valid ในทั้ง JSON และ JSONC
+  // เช็คก่อน strip — มิฉะนั้น regex strip trailing-comma จะลบ `,` ใน `{ , }` ออก
+  // → JSON.parse ผ่าน → คิดว่าไฟล์ valid (เคยทำให้ "ซ่อมเอง บอกปกติ" บั๊กที่จริงยังอยู่)
+  if (LEADING_OR_DOUBLE_COMMA_RE.test(content)) return false;
   try {
     // ลบ /* block comments */
     let stripped = content.replace(/\/\*[\s\S]*?\*\//g, "");
     // ลบ // line comments
     stripped = stripped.replace(/(^|[^\\])\/\/[^\n]*/g, "$1");
-    // ลบ trailing commas ก่อน } หรือ ]
+    // ลบ trailing commas ก่อน } หรือ ] (JSONC อนุญาต)
     stripped = stripped.replace(/,(\s*[}\]])/g, "$1");
     JSON.parse(stripped);
     return true;
@@ -61,34 +79,79 @@ export function looksLikeValidJsonc(content: string): boolean {
  *  2) ถ้าเจอหลายไฟล์ → คืนทั้งหมด แล้ว caller เลือก (โดย default
  *     เลือกตัวที่มี orphan-comma pattern ก่อน)
  */
-export function getCandidateSettingsPaths(): string[] {
+const KNOWN_VARIANTS = [
+  "Code",
+  "Code - Insiders",
+  "Code - OSS",
+  "VSCodium",
+  "Cursor",
+  "Windsurf",
+  "Trae",
+  "Trae CN",
+];
+
+function settingsRootFor(variant: string): string {
   const home = os.homedir();
-  const platform = process.platform;
-
-  // ชุด folder name ที่ใช้กันจริง (Code = stable, Code - Insiders, etc.)
-  const variants = [
-    "Code",
-    "Code - Insiders",
-    "Code - OSS",
-    "VSCodium",
-    "Cursor",
-    "Windsurf",
-  ];
-
-  const roots: string[] = [];
-  if (platform === "win32") {
+  if (process.platform === "win32") {
     const appData = process.env.APPDATA || path.join(home, "AppData", "Roaming");
-    for (const v of variants) roots.push(path.join(appData, v, "User"));
-  } else if (platform === "darwin") {
-    for (const v of variants)
-      roots.push(path.join(home, "Library", "Application Support", v, "User"));
-  } else {
-    // linux / others
-    const xdg = process.env.XDG_CONFIG_HOME || path.join(home, ".config");
-    for (const v of variants) roots.push(path.join(xdg, v, "User"));
+    return path.join(appData, variant, "User");
+  }
+  if (process.platform === "darwin") {
+    return path.join(home, "Library", "Application Support", variant, "User");
+  }
+  const xdg = process.env.XDG_CONFIG_HOME || path.join(home, ".config");
+  return path.join(xdg, variant, "User");
+}
+
+export function getCandidateSettingsPaths(): string[] {
+  return KNOWN_VARIANTS.map((v) => path.join(settingsRootFor(v), "settings.json"));
+}
+
+/**
+ * คืน path settings.json ของ host app ที่กำลังรันอยู่ — ใช้ vscode.env.appName
+ * เพื่อ map ไปยัง folder name ที่ถูกต้อง (เช่น Cursor → "Cursor", VS Code Stable
+ * → "Code", Insiders → "Code - Insiders") รวมถึงเคารพ context.globalStorageUri
+ * เพื่อ infer install variant ในเคสที่ appName mismatch
+ *
+ * เหตุที่จำเป็น: ก่อนนี้ findFirstMatchingSettingsPath() loop ผ่าน candidates
+ * ทุกตัว ถ้าผู้ใช้มีทั้ง Code + Cursor และ Code's settings มี orphan comma
+ * แต่ผู้ใช้รัน Cursor → จะไปแก้ Code's settings (ผิดเครื่อง) แล้วบ่นว่า
+ * "ซ่อมแล้วไม่หาย" — Cursor's settings ที่จริงเป็นเป้ายังไม่ถูกแตะ
+ */
+export function getCurrentHostSettingsPath(
+  context?: vscode.ExtensionContext
+): string | undefined {
+  // 1) ลอง infer จาก globalStorageUri ก่อน — แม่นกว่า appName เพราะเป็น
+  //    real path ที่ host เขียนจริง (เช่น .../Cursor/User/globalStorage/...)
+  if (context) {
+    const fromContext = inferVariantFromPath(context.globalStorageUri.fsPath);
+    if (fromContext) {
+      return path.join(settingsRootFor(fromContext), "settings.json");
+    }
   }
 
-  return roots.map((r) => path.join(r, "settings.json"));
+  // 2) fallback: ใช้ vscode.env.appName
+  const appName = (vscode.env.appName || "").toLowerCase();
+  let variant: string | undefined;
+  if (appName.includes("insiders")) variant = "Code - Insiders";
+  else if (appName.includes("cursor")) variant = "Cursor";
+  else if (appName.includes("windsurf")) variant = "Windsurf";
+  else if (appName.includes("codium")) variant = "VSCodium";
+  else if (appName.includes("oss")) variant = "Code - OSS";
+  else if (appName.includes("trae")) variant = "Trae";
+  else if (appName.includes("visual studio code")) variant = "Code";
+
+  if (!variant) return undefined;
+  return path.join(settingsRootFor(variant), "settings.json");
+}
+
+function inferVariantFromPath(p: string): string | undefined {
+  // หา segment ที่ตรงกับ variant ที่รู้จัก
+  const segs = p.split(/[\\/]+/);
+  for (const v of KNOWN_VARIANTS) {
+    if (segs.includes(v)) return v;
+  }
+  return undefined;
 }
 
 async function fileExists(p: string): Promise<boolean> {
@@ -100,18 +163,31 @@ async function fileExists(p: string): Promise<boolean> {
   }
 }
 
-async function findFirstMatchingSettingsPath(): Promise<{
+async function findFirstMatchingSettingsPath(
+  context?: vscode.ExtensionContext
+): Promise<{
   path: string | undefined;
   tried: string[];
 }> {
-  const candidates = getCandidateSettingsPaths();
+  // ลำดับ:
+  //   1) settings.json ของ host ปัจจุบัน (Cursor / Code / Windsurf / ฯลฯ) — เสมอ
+  //   2) ถ้าไม่เจอ host's settings.json → loop candidates เผื่อมีไฟล์อื่น
   const tried: string[] = [];
-  let firstExisting: string | undefined;
+  const currentHost = getCurrentHostSettingsPath(context);
+  if (currentHost) {
+    tried.push(currentHost);
+    if (await fileExists(currentHost)) {
+      return { path: currentHost, tried };
+    }
+  }
 
+  const candidates = getCandidateSettingsPaths();
+  let firstExisting: string | undefined;
   for (const p of candidates) {
+    if (p === currentHost) continue; // เช็คแล้ว
     tried.push(p);
     if (await fileExists(p)) {
-      // เปิดอ่านดูว่า pattern อยู่ในนั้นไหม → preferred
+      // เปิดอ่านดูว่ามี orphan-comma pattern ไหม → preferred (อาจจะมีปัญหา)
       try {
         const content = await fs.readFile(p, "utf8");
         if (ORPHAN_COMMA_RE.test(content)) {
@@ -125,7 +201,6 @@ async function findFirstMatchingSettingsPath(): Promise<{
     }
   }
 
-  // ไม่เจอไฟล์ที่มี pattern — คืนตัวแรกที่มีอยู่ (caller จะเช็คอีกที)
   return { path: firstExisting, tried };
 }
 
@@ -208,8 +283,10 @@ export function buildPreviewMessage(
  *
  * คืน RepairResult เพื่อ caller รายงานสถานะให้ผู้ใช้
  */
-export async function attemptRepair(): Promise<RepairResult> {
-  const { path: settingsPath, tried } = await findFirstMatchingSettingsPath();
+export async function attemptRepair(
+  context?: vscode.ExtensionContext
+): Promise<RepairResult> {
+  const { path: settingsPath, tried } = await findFirstMatchingSettingsPath(context);
 
   if (!settingsPath) {
     return { kind: "no-file", tried };
@@ -298,4 +375,77 @@ export async function attemptRepair(): Promise<RepairResult> {
     backupPath,
     matches: count,
   };
+}
+
+/**
+ * ซ่อม settings.json แบบเงียบ ๆ — สำหรับเรียกตอน activate ก่อนทำอะไรอย่างอื่น
+ * ไม่ขึ้น modal, ไม่ถาม user, แต่ backup ก่อนเสมอ
+ *
+ * ตรรกะ:
+ *   1) หา settings.json ของ host ปัจจุบัน (Code / Cursor / Windsurf / ฯลฯ)
+ *   2) อ่านไฟล์ → ถ้าไม่เจอ pattern → return { fixed: 0, skipped: true }
+ *   3) ถ้าเจอ → สำรอง → เขียน fix
+ *
+ * ไม่ throw — error ถูกห่อใน return value เพื่อให้ activation flow ไม่พัง
+ */
+export async function silentRepair(
+  context?: vscode.ExtensionContext
+): Promise<SilentRepairResult> {
+  const settingsPath = getCurrentHostSettingsPath(context);
+  if (!settingsPath) {
+    return { fixed: 0, skipped: true };
+  }
+  if (!(await fileExists(settingsPath))) {
+    return { fixed: 0, skipped: true, path: settingsPath };
+  }
+
+  let content: string;
+  try {
+    content = await fs.readFile(settingsPath, "utf8");
+  } catch (err: any) {
+    return {
+      fixed: 0,
+      path: settingsPath,
+      error: `อ่าน settings.json ไม่ได้: ${err?.message ?? String(err)}`,
+    };
+  }
+
+  const { matches } = detectOrphanComma(content);
+  if (matches.length === 0) {
+    return { fixed: 0, skipped: true, path: settingsPath };
+  }
+
+  // backup
+  const ts = new Date()
+    .toISOString()
+    .replace(/[:.]/g, "-")
+    .replace("T", "_")
+    .slice(0, 19);
+  const backupPath = settingsPath.replace(
+    /settings\.json$/,
+    `settings.inkchecker-backup-${ts}.json`
+  );
+  try {
+    await fs.writeFile(backupPath, content, "utf8");
+  } catch (err: any) {
+    return {
+      fixed: 0,
+      path: settingsPath,
+      error: `สำรองไฟล์ไม่ได้: ${err?.message ?? String(err)}`,
+    };
+  }
+
+  const { fixed, count } = applyRepair(content);
+  try {
+    await fs.writeFile(settingsPath, fixed, "utf8");
+  } catch (err: any) {
+    return {
+      fixed: 0,
+      path: settingsPath,
+      backupPath,
+      error: `เขียน settings.json ไม่ได้: ${err?.message ?? String(err)}`,
+    };
+  }
+
+  return { fixed: count, path: settingsPath, backupPath };
 }

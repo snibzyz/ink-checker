@@ -2,7 +2,7 @@
   "name": "ink-checker",
   "displayName": "INKCHECKER",
   "description": "Word and writing consistency checker for Thai text",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "publisher": "inkrealm",
   "icon": "inkrealm-logo.png",
   "repository": {

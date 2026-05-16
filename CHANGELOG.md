@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.0.9
+
+### Fixed
+- **`"[plaintext]": { , }` / `"[markdown]": { , }` ที่ extension เคยทำพังเอง — ตอนนี้ซ่อมอัตโนมัติ + ลดโอกาสเกิดใหม่อย่างมาก** ผู้ใช้รายงานบั๊กยาวว่า settings.json มี orphan-comma noise ขึ้นมาเองตลอด, ปุ่ม "ซ่อมให้อัตโนมัติ" ก็บอก "settings.json ปกติดี" ทั้งที่จริง ๆ ยังเสียอยู่, และ VS Code ขึ้น "Unable to sync setting because the content in the file is not valid". v1.0.9 แก้ 3 ชั้น:
+  - **Silent self-heal ตอน activate** (`silentRepair()` ใน `src/settingsRepair.ts`) — เปิด VS Code มา → extension ตรวจ settings.json โดยตรง, ถ้าเจอ orphan-comma pattern → สำรองไฟล์ + ซ่อมเงียบ ๆ ไม่มี popup, แสดงข้อความบอกว่าซ่อม N จุดและ backup ไว้ที่ไหน. ทำให้ noise ที่ตกค้างจากเวอร์ชั่นก่อน ๆ หายเองโดยไม่ต้องให้ user กดอะไร.
+  - **Path resolution ตรง host ปัจจุบัน** — เพิ่ม `getCurrentHostSettingsPath()` ใช้ `context.globalStorageUri.fsPath` (infer variant แม่นที่สุด) แล้ว fallback ไป `vscode.env.appName`. ก่อนหน้านี้ `findFirstMatchingSettingsPath()` loop ผ่าน candidates ถ้าผู้ใช้มีทั้ง VS Code Stable + Cursor + Insiders → repair flow อาจไปแก้ผิดเครื่อง → user บ่นว่า "ซ่อมแล้วไม่หาย" เพราะ Cursor's settings ยังไม่ถูกแตะ. ตอนนี้ทั้ง `silentRepair()` และ `attemptRepair()` รับ `context` แล้วเล็งไฟล์ของ host ที่กำลังรันก่อนเสมอ.
+  - **`looksLikeValidJsonc()` ตรวจจับ orphan-comma จริง** — ก่อนหน้านี้ regex strip trailing comma (`/,(\s*[}\]])/g`) ก่อน `JSON.parse()` ทำให้ `{ , }` ถูกแก้เป็น `{ }` แล้วผ่าน parse → คิดว่าไฟล์ valid → flow ตอบ "file-ok-likely-race" ทั้งที่จริงยังพังอยู่. v1.0.9 เพิ่ม guard `LEADING_OR_DOUBLE_COMMA_RE` (`[\{\[]\s*,|,\s*,`) check ก่อน strip — ถ้าเจอ pattern แบบนี้ → return false ทันที.
+- **Atomic container write — ลด race window จาก 6 writes/lang เหลือ 1 write/lang** ต้นเหตุของ orphan-comma คือ `applyFormattingToVSCode()` เรียก `vscode.workspace.getConfiguration("editor", { languageId: "plaintext" }).update("fontFamily" / "fontSize" / "lineHeight" / "wordWrap" / "wordWrapColumn" / "wrappingStrategy", ...)` 6 ครั้งติดกัน. แต่ละ `.update()` ทำให้ VS Code's JSON modifier read-modify-write `settings.json` ใหม่ทั้งไฟล์ → ถ้ามี VS Code instance อื่นเขียนพร้อมกัน 6 ครั้งนี้ → ตัวหนึ่งสำเร็จบางส่วน อีกตัวกระแทก → JSON modifier ทิ้ง `, ` ค้างใน object. v1.0.9 เพิ่ม `writeLangContainerAtomic(lang, ourKeys, target)` ที่ inspect `[lang]` ปัจจุบัน → merge กับ key ของเรา → `root.update("[lang]", merged, target)` ครั้งเดียวต่อภาษา (preserves user's own keys ใน container). ลดจำนวน file write ลง 6× → race ก็แคบลง 6×. แทนที่ทั้งใน `doApplyFormattingOnce()`, `restoreSnapshotIfExists()`, `restoreLangFromSnapshot()`, `restoreLangFromAnySnapshot()`, `resetFormatting()`, และ `migrateToV2()`. ฟังก์ชันเดิม `writeEditorSettingIdempotent()` คงไว้สำหรับเคสที่ต้องเขียน key เดียวจริง ๆ.
+- **`extensionContext` ระดับ module ใน `extension.ts`** — เพื่อให้ `runRepairFlow()` ส่งต่อ context เข้า `attemptRepair(context)` ได้ → path resolution ใช้ globalStorageUri ของ host จริง.
+
 ## 1.0.8
 
 ### Fixed

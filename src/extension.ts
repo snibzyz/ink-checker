@@ -11,7 +11,7 @@ import {
   getFormattingConfig,
   runMigrations,
 } from "./formatting";
-import { attemptRepair } from "./settingsRepair";
+import { attemptRepair, silentRepair } from "./settingsRepair";
 import { openConvertMenu, convertFromExplorer } from "./fileConvert";
 
 // ======================================================================
@@ -598,6 +598,10 @@ async function migrateLegacySettings() {
  * "[markdown]": { , } / "[plaintext]": { , } ที่ตัว extension นี้เคยทำพังเอง
  * จะ backup ไฟล์ก่อนเขียนเสมอ + ขึ้น modal ยืนยัน → ไม่แตะ key อื่น
  */
+// เก็บ extension context ระดับ module เพื่อให้ notify/repair flow ใช้ infer
+// settings.json path จาก context.globalStorageUri ได้ — แม่นกว่า appName เพียงอย่างเดียว
+let extensionContext: vscode.ExtensionContext | undefined;
+
 let settingsErrorNotified = false;
 export async function notifySettingsWriteError(err: unknown): Promise<void> {
   if (settingsErrorNotified) return;
@@ -631,7 +635,7 @@ export async function notifySettingsWriteError(err: unknown): Promise<void> {
  * ถ้าไม่เจอ pattern ที่รู้จัก fallback ไปเปิด settings.json ปกติ
  */
 async function runRepairFlow(): Promise<void> {
-  const result = await attemptRepair();
+  const result = await attemptRepair(extensionContext);
   switch (result.kind) {
     case "ok": {
       const RELOAD = "Reload Window";
@@ -689,6 +693,29 @@ async function runRepairFlow(): Promise<void> {
 
 export async function activate(context: vscode.ExtensionContext) {
   console.log("INK CHECKER is now active!");
+  extensionContext = context;
+
+  // ──────────────────────────────────────────────────────────────────────
+  // v1.0.9: Silent self-heal — ก่อนทำอะไรทุกอย่าง ตรวจ settings.json โดยตรง
+  // ถ้าเจอ orphan-comma pattern (`"[plaintext]": { , }` / `"[markdown]": { , }`)
+  // ที่ extension นี้อาจสร้างไว้จาก race condition รุ่นก่อน ๆ → ซ่อมเงียบ + backup
+  // ทำให้ผู้ใช้ไม่ต้องกด "ซ่อมให้อัตโนมัติ" เอง และไม่เจอ noise ตกค้าง
+  // ──────────────────────────────────────────────────────────────────────
+  try {
+    const repaired = await silentRepair(context);
+    if (repaired.fixed > 0) {
+      console.log(
+        `[INK CHECKER] silent-repair fixed ${repaired.fixed} orphan-comma in ${repaired.path} (backup: ${repaired.backupPath})`
+      );
+      void vscode.window.showInformationMessage(
+        `INK CHECKER: ซ่อม settings.json อัตโนมัติแล้ว (${repaired.fixed} จุด) — สำรองไฟล์ไว้ที่ ${repaired.backupPath}`
+      );
+    } else if (repaired.error) {
+      console.warn("[INK CHECKER] silent-repair error:", repaired.error);
+    }
+  } catch (err) {
+    console.warn("[INK CHECKER] silent-repair threw:", err);
+  }
 
   // ──────────────────────────────────────────────────────────────────────
   // ลำดับ activation: "ของที่ไม่แตะ user settings" ทำก่อนเสมอ —
