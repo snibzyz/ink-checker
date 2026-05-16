@@ -18,10 +18,13 @@ import * as os from "os";
 // **ไม่แตะ key อื่น ๆ ของ user เลย** ถ้าหา pattern ไม่เจอ → return false
 // ให้ผู้ใช้เปิดไฟล์แก้เองแบบเดิม
 
-// orphan-comma pattern เฉพาะใน "[markdown]" / "[plaintext]" / "[txt]" — รูปแบบที่
-// VS Code's JSON modifier ทิ้งค้างไว้เมื่อหลาย instance เขียน editor.* key พร้อมกัน
+// orphan-comma pattern ใน "[<lang>]" object ใด ๆ — รูปแบบที่ VS Code's JSON
+// modifier ทิ้งค้างไว้เมื่อหลาย instance เขียน editor.* key พร้อมกัน
+// ครอบทุก langId เพราะ extension นี้รองรับ dynamic langs ด้วย (`[log]`,
+// `[ascii]`, `[markdown_legacy_postfixed]`, ฯลฯ เกิดได้ทั้งหมด) — และ
+// orphan-comma `{ , }` เป็น invalid JSON ทุกที่ จึง safe ที่จะกวาดทั้งบ้าน
 const ORPHAN_COMMA_RE =
-  /"(\[(?:markdown|plaintext|txt|markdown_\w+|plain_?text_\w+)\])"\s*:\s*\{\s*(?:,\s*)+\}/g;
+  /"(\[[\w.\-+#]+\])"\s*:\s*\{\s*(?:,\s*)+\}/g;
 
 // orphan comma แบบทั่วไป — `{ , ... }` ที่ขึ้นต้นด้วยลูกน้ำ (ไม่ใช่ trailing)
 // ใช้ตรวจใน looksLikeValidJsonc เพื่อไม่ให้ false positive ว่าไฟล์ valid
